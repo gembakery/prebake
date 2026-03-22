@@ -2,6 +2,10 @@ name = "prebake"
 main = "src/index.js"
 compatibility_date = "2026-03-22"
 
+[[routes]]
+pattern = "gems.prebake.in"
+custom_domain = true
+
 [[r2_buckets]]
 binding = "R2_BUCKET"
 bucket_name = "prebake-gems"
