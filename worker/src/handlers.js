@@ -1,5 +1,5 @@
 import { triggerBuild } from "./build-trigger.js";
-import { timingSafeEqual, createSizeLimitedStream } from "./utils.js";
+import { timingSafeEqual } from "./utils.js";
 
 const MAX_UPLOAD_SIZE = 50 * 1024 * 1024; // 50MB
 
@@ -83,23 +83,11 @@ export async function handlePut(request, cacheKey, env) {
     );
   }
 
-  const limitedBody = createSizeLimitedStream(request.body, MAX_UPLOAD_SIZE);
-
-  try {
-    await env.R2_BUCKET.put(cacheKey, limitedBody, {
-      httpMetadata: {
-        contentType: "application/octet-stream",
-      },
-    });
-  } catch (err) {
-    if (err instanceof RangeError) {
-      await env.R2_BUCKET.delete(cacheKey);
-      return new Response(`File too large: exceeds ${MAX_UPLOAD_SIZE}`, {
-        status: 413,
-      });
-    }
-    throw err;
-  }
+  await env.R2_BUCKET.put(cacheKey, request.body, {
+    httpMetadata: {
+      contentType: "application/octet-stream",
+    },
+  });
 
   await env.R2_BUCKET.delete(pendingKey);
 
