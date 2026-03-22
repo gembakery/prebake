@@ -3,8 +3,8 @@ main = "src/index.js"
 compatibility_date = "2026-03-22"
 
 [[routes]]
-pattern = "gems.prebake.in"
-custom_domain = true
+pattern = "gems.prebake.in/gems/*"
+zone_name = "prebake.in"
 
 [[r2_buckets]]
 binding = "R2_BUCKET"
