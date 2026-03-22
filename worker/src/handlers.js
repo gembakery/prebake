@@ -3,12 +3,14 @@ import { timingSafeEqual, createSizeLimitedStream } from "./utils.js";
 
 const MAX_UPLOAD_SIZE = 50 * 1024 * 1024; // 50MB
 
-export async function handleGet(cacheKey, env, clientIp) {
+export async function handleGet(cacheKey, env, ctx, clientIp) {
   const object = await env.R2_BUCKET.get(cacheKey);
 
   if (!object) {
-    triggerBuild(cacheKey, env, clientIp).catch((err) =>
-      console.error(`Failed to trigger build for ${cacheKey}:`, err),
+    ctx.waitUntil(
+      triggerBuild(cacheKey, env, clientIp).catch((err) =>
+        console.error(`Failed to trigger build for ${cacheKey}:`, err),
+      ),
     );
 
     return new Response("Not found", { status: 404 });

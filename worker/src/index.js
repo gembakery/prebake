@@ -8,7 +8,7 @@ import { CACHE_KEY_REGEX } from "./build-trigger.js";
 import { handleGet, handleHead, handlePut } from "./handlers.js";
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const path = url.pathname;
 
@@ -33,7 +33,7 @@ export default {
 
     switch (request.method) {
       case "GET":
-        return handleGet(cacheKey, env, clientIp);
+        return handleGet(cacheKey, env, ctx, clientIp);
       case "HEAD":
         return handleHead(cacheKey, env);
       case "PUT":
