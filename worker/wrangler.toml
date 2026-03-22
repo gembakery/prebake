@@ -1,0 +1,43 @@
+name = "prebake"
+main = "src/index.js"
+compatibility_date = "2026-03-22"
+
+[[r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "prebake-gems"
+
+[vars]
+GITHUB_REPO = "gembakery/prebake"
+CACHE_KEY_PATTERN = "^[a-zA-Z0-9_.-]+-[0-9.]+-[a-z0-9_-]+-ruby[0-9.]+\\.gem$"
+MAX_MONTHLY_BUILDS = "400"
+
+# Rate limit: 150 requests per 60 seconds per IP.
+# CDN absorbs most cached-gem traffic, so 150/min is plenty for CI/CD.
+[[ratelimits]]
+name = "RATE_LIMITER"
+namespace_id = "1001"
+
+[ratelimits.simple]
+limit = 150
+period = 60
+
+# Build trigger rate limit: 25 per 60 seconds per IP.
+# Protects GitHub Actions minutes from abuse.
+# Sized for cold-cache `bundle install` (~21-25 native gems).
+[[ratelimits]]
+name = "BUILD_RATE_LIMITER"
+namespace_id = "1002"
+
+[ratelimits.simple]
+limit = 25
+period = 60
+
+# Secrets (set via `wrangler secret put`):
+#
+# - API_KEY: A random token (e.g., `openssl rand -hex 32`) used to authenticate
+#   PUT requests from GitHub Actions. The build-gem.yml workflow sends this as
+#   `Authorization: Bearer <API_KEY>` when uploading compiled gems back to R2.
+#   Store the same value as a GitHub Actions secret (e.g., PREBAKE_API_KEY).
+#
+# - GITHUB_TOKEN: A GitHub PAT with `repo` scope on the GITHUB_REPO above.
+#   The worker uses it to trigger the build-gem.yml workflow_dispatch on cache miss.

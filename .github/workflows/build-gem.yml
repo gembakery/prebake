@@ -1,0 +1,131 @@
+name: Build Prebake Gem
+
+on:
+  workflow_dispatch:
+    inputs:
+      gem_name:
+        description: "Gem name (e.g., puma)"
+        required: true
+        type: string
+      gem_version:
+        description: "Gem version (e.g., 6.4.3)"
+        required: true
+        type: string
+      platform:
+        description: "Target platform"
+        required: true
+        type: choice
+        options:
+          - x86_64-linux
+          - aarch64-linux
+      ruby_abi:
+        description: "Ruby ABI version (e.g., 4.0)"
+        required: true
+        type: string
+      build_nonce:
+        description: "Build nonce for PUT authentication"
+        required: true
+        type: string
+
+jobs:
+  build:
+    name: "Build ${{ inputs.gem_name }}-${{ inputs.gem_version }} (${{ inputs.platform }})"
+    runs-on: >-
+      ${{
+        inputs.platform == 'aarch64-linux' && 'ubuntu-24.04-arm' ||
+        'ubuntu-latest'
+      }}
+    timeout-minutes: 10
+
+    steps:
+      - name: Validate inputs
+        env:
+          GEM_NAME: ${{ inputs.gem_name }}
+          GEM_VERSION: ${{ inputs.gem_version }}
+          PLATFORM: ${{ inputs.platform }}
+          RUBY_ABI: ${{ inputs.ruby_abi }}
+        run: |
+          # Validate gem name: only alphanumeric, hyphens, underscores
+          if ! echo "$GEM_NAME" | grep -qE '^[a-zA-Z0-9_-]+$'; then
+            echo "ERROR: Invalid gem name: $GEM_NAME"
+            exit 1
+          fi
+          # Validate version: only digits and dots
+          if ! echo "$GEM_VERSION" | grep -qE '^[0-9]+(\.[0-9]+)*$'; then
+            echo "ERROR: Invalid gem version: $GEM_VERSION"
+            exit 1
+          fi
+          # Validate platform (already constrained by choice type, but double-check)
+          case "$PLATFORM" in
+            x86_64-linux|aarch64-linux) ;;
+            *) echo "ERROR: Invalid platform: $PLATFORM"; exit 1 ;;
+          esac
+          # Validate ruby ABI: digits and dot
+          if ! echo "$RUBY_ABI" | grep -qE '^[0-9]+\.[0-9]+$'; then
+            echo "ERROR: Invalid ruby ABI: $RUBY_ABI"
+            exit 1
+          fi
+          echo "Inputs validated: $GEM_NAME $GEM_VERSION $PLATFORM ruby$RUBY_ABI"
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "${{ inputs.ruby_abi }}"
+
+      - name: Install rubygems-build-binary
+        run: gem install rubygems-build-binary -v 0.0.2
+
+      - name: Fetch gem from rubygems.org
+        env:
+          GEM_NAME: ${{ inputs.gem_name }}
+          GEM_VERSION: ${{ inputs.gem_version }}
+        run: |
+          gem fetch "$GEM_NAME" --version "$GEM_VERSION" --platform ruby
+          ls -la *.gem
+
+      - name: Build binary gem
+        env:
+          GEM_NAME: ${{ inputs.gem_name }}
+          GEM_VERSION: ${{ inputs.gem_version }}
+        run: |
+          gem build_binary "${GEM_NAME}-${GEM_VERSION}.gem"
+          ls -la *.gem
+
+      - name: Push to cache
+        env:
+          GEM_NAME: ${{ inputs.gem_name }}
+          GEM_VERSION: ${{ inputs.gem_version }}
+          PLATFORM: ${{ inputs.platform }}
+          RUBY_ABI: ${{ inputs.ruby_abi }}
+          WORKER_URL: ${{ vars.WORKER_URL }}
+          API_KEY: ${{ secrets.WORKER_API_KEY }}
+          BUILD_NONCE: ${{ inputs.build_nonce }}
+        run: |
+          # Find the compiled platform gem
+          COMPILED=$(ls ${GEM_NAME}-${GEM_VERSION}-*.gem 2>/dev/null | head -1)
+          if [ -z "$COMPILED" ]; then
+            echo "ERROR: No compiled gem found"
+            ls -la *.gem
+            exit 1
+          fi
+          echo "Found compiled gem: $COMPILED"
+
+          CACHE_KEY="${GEM_NAME}-${GEM_VERSION}-${PLATFORM}-ruby${RUBY_ABI}.gem"
+          echo "Pushing ${CACHE_KEY} to ${WORKER_URL}"
+
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X PUT \
+            -H "Authorization: Bearer ${API_KEY}" \
+            -H "Content-Type: application/octet-stream" \
+            -H "X-Build-Nonce: ${BUILD_NONCE}" \
+            --data-binary "@${COMPILED}" \
+            "${WORKER_URL}/gems/${CACHE_KEY}")
+
+          echo "Response: HTTP ${HTTP_STATUS}"
+
+          if [ "$HTTP_STATUS" = "201" ] || [ "$HTTP_STATUS" = "409" ]; then
+            echo "Success (${HTTP_STATUS})"
+          else
+            echo "Failed to push: HTTP ${HTTP_STATUS}"
+            exit 1
+          fi
