@@ -29,7 +29,7 @@ module Prebake
       def fetch_checksum(cache_key)
         return nil unless sdk_available?
 
-        response = client.get_object(bucket: @bucket, key: "#{object_key(cache_key)}.sha256")
+        response = client.get_object(bucket: @bucket, key: checksum_key(cache_key))
         response.body.read.strip
       rescue StandardError => e
         Logger.debug "S3 checksum fetch failed for #{cache_key}: #{e.message}"
@@ -39,10 +39,19 @@ module Prebake
       def push(gem_path, cache_key, checksum)
         return false unless sdk_available?
 
+        gem_key = object_key(cache_key)
         File.open(gem_path, "rb") do |file|
-          client.put_object(bucket: @bucket, key: object_key(cache_key), body: file)
+          client.put_object(bucket: @bucket, key: gem_key, body: file)
         end
-        client.put_object(bucket: @bucket, key: "#{object_key(cache_key)}.sha256", body: checksum)
+
+        begin
+          client.put_object(bucket: @bucket, key: checksum_key(cache_key), body: checksum)
+        rescue StandardError => e
+          Logger.warn "S3 checksum push failed for #{cache_key}: #{e.message}, removing gem"
+          client.delete_object(bucket: @bucket, key: gem_key)
+          return false
+        end
+
         Logger.info "Pushed #{cache_key} to S3"
         true
       rescue StandardError => e
@@ -59,10 +68,26 @@ module Prebake
         false
       end
 
+      def delete(cache_key)
+        return false unless sdk_available?
+
+        client.delete_object(bucket: @bucket, key: object_key(cache_key))
+        client.delete_object(bucket: @bucket, key: checksum_key(cache_key))
+        Logger.info "Deleted #{cache_key} from S3"
+        true
+      rescue StandardError => e
+        Logger.debug "S3 delete failed for #{cache_key}: #{e.message}"
+        false
+      end
+
       private
 
       def object_key(cache_key)
         "#{@prefix}/#{cache_key}"
+      end
+
+      def checksum_key(cache_key)
+        "#{object_key(cache_key)}.sha256"
       end
 
       def sdk_available?
