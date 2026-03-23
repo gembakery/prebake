@@ -18,6 +18,14 @@ module Prebake
       def exists?(cache_key)
         raise NotImplementedError, "#{self.class}#exists? not implemented"
       end
+
+      def delete(cache_key)
+        raise NotImplementedError, "#{self.class}#delete not implemented"
+      end
+
+      def checksums_supported?
+        true
+      end
     end
   end
 end
