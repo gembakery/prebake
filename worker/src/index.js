@@ -4,8 +4,10 @@
 // PUT  /gems/{cache_key} - upload prebake gem to R2 (authenticated)
 // HEAD /gems/{cache_key} - check existence in R2 (public)
 
-import { CACHE_KEY_REGEX } from "./build-trigger.js";
+import { CACHE_KEY_REGEX, parseCacheKey } from "./build-trigger.js";
 import { handleGet, handleHead, handlePut } from "./handlers.js";
+
+const SUPPORTED_PLATFORMS = new Set(["x86_64-linux", "aarch64-linux"]);
 
 export default {
   async fetch(request, env, ctx) {
@@ -22,6 +24,13 @@ export default {
     // Validate cache key format before dispatching to any handler.
     // Prevents access to internal R2 objects (e.g., _pending/ markers).
     if (!CACHE_KEY_REGEX.test(cacheKey)) {
+      return new Response("Not found", { status: 404 });
+    }
+
+    // Reject unsupported platforms early to avoid consuming rate-limit
+    // quota, R2 reads, and GitHub Actions builds.
+    const parsed = parseCacheKey(cacheKey);
+    if (!parsed || !SUPPORTED_PLATFORMS.has(parsed.platform)) {
       return new Response("Not found", { status: 404 });
     }
 

@@ -72,6 +72,27 @@ jobs:
         with:
           ruby-version: "${{ inputs.ruby_abi }}"
 
+      - name: Cache apt packages
+        uses: actions/cache@v5
+        with:
+          path: /var/cache/apt/archives
+          key: apt-native-deps-${{ inputs.platform }}-${{ hashFiles('.github/workflows/build-gem.yml') }}
+          restore-keys: apt-native-deps-${{ inputs.platform }}-
+
+      - name: Install common native-extension dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -yq --no-install-recommends \
+            libpq-dev \
+            default-libmysqlclient-dev \
+            libsqlite3-dev \
+            libmagickwand-dev \
+            libcurl4-openssl-dev \
+            libre2-dev \
+            libvips-dev \
+            libffi-dev \
+            libyaml-dev
+
       - name: Install rubygems-build-binary
         run: gem install rubygems-build-binary -v 0.0.2
 
