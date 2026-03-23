@@ -56,6 +56,14 @@ module Prebake
         nil
       end
 
+      def checksums_supported?
+        false
+      end
+
+      def delete(_cache_key)
+        false
+      end
+
       def push(gem_path, cache_key, _checksum)
         uri = URI("#{@url}/private/api/v1/gems")
         gem_content = File.binread(gem_path)
