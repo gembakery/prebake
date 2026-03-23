@@ -48,6 +48,10 @@ class GemstashBackendTest < Minitest::Test
     assert_nil @backend.fetch_checksum(@cache_key)
   end
 
+  def test_checksums_not_supported
+    refute @backend.checksums_supported?
+  end
+
   def test_push_posts_gem_with_auth_header
     stub_request(:post, "http://localhost:9292/private/api/v1/gems")
       .with(headers: { "Authorization" => "test-api-key" })
