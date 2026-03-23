@@ -14,8 +14,6 @@ class ExtBuilderPatchTest < Minitest::Test
     @gem_dir = File.join(@tmpdir, "gem_dir")
     FileUtils.mkdir_p(@extension_dir)
     FileUtils.mkdir_p(@gem_dir)
-
-    # Ensure patch is applied (idempotent)
     return if Gem::Ext::Builder.ancestors.include?(Prebake::ExtBuilderPatch)
 
     Gem::Ext::Builder.prepend(Prebake::ExtBuilderPatch)
@@ -26,84 +24,85 @@ class ExtBuilderPatchTest < Minitest::Test
     Prebake.reset!
   end
 
-  def test_skips_compilation_when_cache_hit
+  def make_spec(**overrides)
     spec = mock("spec")
-    spec.stubs(:extensions).returns(["ext/test/extconf.rb"])
-    spec.stubs(:name).returns("testgem")
-    spec.stubs(:version).returns(Gem::Version.new("1.0.0"))
-    spec.stubs(:extension_dir).returns(@extension_dir)
-    spec.stubs(:gem_build_complete_path).returns(@build_complete)
-    spec.stubs(:full_gem_path).returns(@gem_dir)
+    { extensions: ["ext/test/extconf.rb"], name: "testgem",
+      version: Gem::Version.new(overrides.delete(:version) || "1.0.0"),
+      extension_dir: @extension_dir, gem_build_complete_path: @build_complete,
+      full_gem_path: @gem_dir, raw_require_paths: ["lib"] }
+      .merge(overrides).each { |m, v| spec.stubs(m).returns(v) }
+    spec
+  end
 
+  def cache_key = Prebake::CacheKey.for("testgem", "1.0.0", Prebake::Platform.generalized)
+
+  def fake_gem_path
+    path = File.join(@tmpdir, "fake.gem")
+    File.write(path, "fake")
+    path
+  end
+
+  def build(spec) = Gem::Ext::Builder.new(spec, "").build_extensions
+
+  def test_skips_compilation_when_cache_hit_with_valid_checksum
+    spec = make_spec
+    gem_path = fake_gem_path
+    checksum = Digest::SHA256.file(gem_path).hexdigest
     backend = mock("backend")
-    gem_path = File.join(@tmpdir, "fake.gem")
-    File.write(gem_path, "fake")
-
-    cache_key = Prebake::CacheKey.for("testgem", "1.0.0",
-                                      Prebake::Platform.generalized)
-
+    backend.expects(:fetch_checksum).with(cache_key).returns(checksum)
     backend.expects(:fetch).with(cache_key).returns(gem_path)
-    backend.expects(:fetch_checksum).with(cache_key).returns(nil)
-
     Prebake.backend = backend
     Prebake::Extractor.expects(:install).with(gem_path, spec)
+    build(spec)
+    assert File.exist?(@build_complete), "gem_build_complete marker should be written"
+  end
 
-    builder = Gem::Ext::Builder.new(spec, "")
-    builder.build_extensions
+  def test_deletes_cached_gem_when_no_checksum_available
+    spec = make_spec
+    backend = mock("backend")
+    backend.expects(:fetch_checksum).with(cache_key).returns(nil)
+    backend.expects(:checksums_supported?).returns(true)
+    backend.expects(:delete).with(cache_key)
+    backend.expects(:fetch).never
+    Prebake.backend = backend
+    Prebake::Extractor.expects(:install).never
+    assert_raises(Gem::Ext::BuildError) { build(spec) }
+  end
 
+  def test_accepts_gem_without_checksum_when_backend_does_not_support_checksums
+    spec = make_spec
+    gem_path = fake_gem_path
+    backend = mock("backend")
+    backend.expects(:fetch_checksum).with(cache_key).returns(nil)
+    backend.expects(:checksums_supported?).returns(false)
+    backend.expects(:delete).never
+    backend.expects(:fetch).with(cache_key).returns(gem_path)
+    Prebake.backend = backend
+    Prebake::Extractor.expects(:install).with(gem_path, spec)
+    build(spec)
     assert File.exist?(@build_complete), "gem_build_complete marker should be written"
   end
 
   def test_falls_through_on_cache_miss
-    spec = mock("spec")
-    spec.stubs(:extensions).returns(["ext/test/extconf.rb"])
-    spec.stubs(:name).returns("testgem")
-    spec.stubs(:version).returns(Gem::Version.new("1.0.0"))
-    spec.stubs(:full_gem_path).returns(@gem_dir)
-    spec.stubs(:extension_dir).returns(@extension_dir)
-    spec.stubs(:gem_build_complete_path).returns(@build_complete)
-    spec.stubs(:raw_require_paths).returns(["lib"])
-
+    spec = make_spec
     backend = mock("backend")
-    cache_key = Prebake::CacheKey.for("testgem", "1.0.0",
-                                      Prebake::Platform.generalized)
+    backend.stubs(:fetch_checksum).with(cache_key).returns("somechecksum")
     backend.expects(:fetch).with(cache_key).returns(nil)
-
     Prebake.backend = backend
-
-    # super will be called, which will try to actually build - it will fail
-    # because there's no real extension, but the point is it was called
-    builder = Gem::Ext::Builder.new(spec, "")
-    assert_raises(Gem::Ext::BuildError) { builder.build_extensions }
+    assert_raises(Gem::Ext::BuildError) { build(spec) }
   end
 
   def test_skips_gems_without_extensions
-    spec = mock("spec")
-    spec.stubs(:extensions).returns([])
-    spec.stubs(:full_gem_path).returns(@gem_dir)
-
+    spec = make_spec(extensions: [])
     backend = mock("backend")
     backend.expects(:fetch).never
-
     Prebake.backend = backend
-
-    builder = Gem::Ext::Builder.new(spec, "")
-    builder.build_extensions
-    # No error means it returned early
+    build(spec)
   end
 
   def test_falls_through_when_backend_nil
-    spec = mock("spec")
-    spec.stubs(:extensions).returns(["ext/test/extconf.rb"])
-    spec.stubs(:full_gem_path).returns(@gem_dir)
-    spec.stubs(:extension_dir).returns(@extension_dir)
-    spec.stubs(:gem_build_complete_path).returns(@build_complete)
-    spec.stubs(:raw_require_paths).returns(["lib"])
-
+    spec = make_spec
     Prebake.backend = nil
-
-    # super will be called
-    builder = Gem::Ext::Builder.new(spec, "")
-    assert_raises(Gem::Ext::BuildError) { builder.build_extensions }
+    assert_raises(Gem::Ext::BuildError) { build(spec) }
   end
 end
