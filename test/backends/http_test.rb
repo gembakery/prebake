@@ -50,4 +50,38 @@ class HttpBackendTest < Minitest::Test
     assert @backend.exists?(@cache_key)
   end
 
+  def test_delete_sends_delete_for_gem_and_checksum
+    stub_request(:delete, "https://prebake.internal/gems/#{@cache_key}")
+      .with(headers: { "Authorization" => "Bearer bearer-secret" })
+      .to_return(status: 200)
+    stub_request(:delete, "https://prebake.internal/gems/#{@cache_key}.sha256")
+      .with(headers: { "Authorization" => "Bearer bearer-secret" })
+      .to_return(status: 200)
+
+    assert @backend.delete(@cache_key)
+  end
+
+  def test_delete_returns_false_on_gem_404
+    stub_request(:delete, "https://prebake.internal/gems/#{@cache_key}")
+      .to_return(status: 404)
+    stub_request(:delete, "https://prebake.internal/gems/#{@cache_key}.sha256")
+      .to_return(status: 404)
+
+    refute @backend.delete(@cache_key)
+  end
+
+  def test_push_cleans_up_gem_when_checksum_push_fails
+    stub_request(:put, "https://prebake.internal/gems/#{@cache_key}")
+      .to_return(status: 201)
+    stub_request(:put, "https://prebake.internal/gems/#{@cache_key}.sha256")
+      .to_return(status: 500)
+    stub_request(:delete, "https://prebake.internal/gems/#{@cache_key}")
+      .to_return(status: 200)
+
+    Tempfile.create(["test", ".gem"]) do |f|
+      f.write("gem-content")
+      f.flush
+      refute @backend.push(f.path, @cache_key, "abc123")
+    end
+  end
 end

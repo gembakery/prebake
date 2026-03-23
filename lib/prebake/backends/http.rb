@@ -25,8 +25,7 @@ module Prebake
       end
 
       def fetch(cache_key)
-        uri = URI("#{@url}/gems/#{cache_key}")
-        response = http_request(:get, uri)
+        response = http_request(:get, gem_uri(cache_key))
         return nil unless response.is_a?(Net::HTTPSuccess)
 
         path = File.join(Dir.tmpdir, "prebake-#{SecureRandom.hex(16)}.gem")
@@ -38,8 +37,7 @@ module Prebake
       end
 
       def fetch_checksum(cache_key)
-        uri = URI("#{@url}/gems/#{cache_key}.sha256")
-        response = http_request(:get, uri)
+        response = http_request(:get, checksum_uri(cache_key))
         return nil unless response.is_a?(Net::HTTPSuccess)
 
         response.body.strip
@@ -49,21 +47,19 @@ module Prebake
       end
 
       def push(gem_path, cache_key, checksum)
-        gem_uri = URI("#{@url}/gems/#{cache_key}")
-        gem_response = http_request(:put, gem_uri, body: File.binread(gem_path))
+        gem_response = http_request(:put, gem_uri(cache_key), body: File.binread(gem_path))
 
         unless gem_response.is_a?(Net::HTTPSuccess)
           Logger.warn "Failed to push #{cache_key}: #{gem_response.code}"
           return false
         end
 
-        # Checksum is a secondary artifact - log failure but don't fail the push.
-        # The gem itself was pushed successfully; missing checksums can be backfilled.
-        checksum_uri = URI("#{@url}/gems/#{cache_key}.sha256")
-        checksum_response = http_request(:put, checksum_uri, body: checksum)
+        checksum_response = http_request(:put, checksum_uri(cache_key), body: checksum)
 
         unless checksum_response.is_a?(Net::HTTPSuccess)
-          Logger.warn "Checksum push failed for #{cache_key}: #{checksum_response.code}"
+          Logger.warn "Checksum push failed for #{cache_key}: #{checksum_response.code}, removing gem"
+          http_request(:delete, gem_uri(cache_key))
+          return false
         end
 
         Logger.info "Pushed #{cache_key}"
@@ -74,14 +70,31 @@ module Prebake
       end
 
       def exists?(cache_key)
-        uri = URI("#{@url}/gems/#{cache_key}")
-        response = http_request(:head, uri)
+        response = http_request(:head, gem_uri(cache_key))
         response.is_a?(Net::HTTPSuccess)
       rescue StandardError
         false
       end
 
+      def delete(cache_key)
+        gem_response = http_request(:delete, gem_uri(cache_key))
+        http_request(:delete, checksum_uri(cache_key))
+
+        gem_response.is_a?(Net::HTTPSuccess)
+      rescue StandardError => e
+        Logger.debug "Delete failed for #{cache_key}: #{e.message}"
+        false
+      end
+
       private
+
+      def gem_uri(cache_key)
+        URI("#{@url}/gems/#{cache_key}")
+      end
+
+      def checksum_uri(cache_key)
+        URI("#{@url}/gems/#{cache_key}.sha256")
+      end
 
       def apply_auth_header(request)
         request["Authorization"] = "Bearer #{@token}" if @token

@@ -132,7 +132,8 @@ jobs:
           echo "Found compiled gem: $COMPILED"
 
           CACHE_KEY="${GEM_NAME}-${GEM_VERSION}-${PLATFORM}-ruby${RUBY_ABI}.gem"
-          echo "Pushing ${CACHE_KEY} to ${WORKER_URL}"
+          CHECKSUM=$(sha256sum "$COMPILED" | cut -d' ' -f1)
+          echo "Pushing ${CACHE_KEY} to ${WORKER_URL} (SHA256: ${CHECKSUM})"
 
           HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
             -X PUT \
@@ -142,11 +143,29 @@ jobs:
             --data-binary "@${COMPILED}" \
             "${WORKER_URL}/gems/${CACHE_KEY}")
 
-          echo "Response: HTTP ${HTTP_STATUS}"
+          echo "Gem push: HTTP ${HTTP_STATUS}"
 
-          if [ "$HTTP_STATUS" = "201" ] || [ "$HTTP_STATUS" = "409" ]; then
-            echo "Success (${HTTP_STATUS})"
-          else
-            echo "Failed to push: HTTP ${HTTP_STATUS}"
+          # 201 = created, 409 = already exists (idempotent)
+          if [ "$HTTP_STATUS" != "201" ] && [ "$HTTP_STATUS" != "409" ]; then
+            echo "Failed to push gem: HTTP ${HTTP_STATUS}"
             exit 1
           fi
+
+          CHECKSUM_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X PUT \
+            -H "Authorization: Bearer ${API_KEY}" \
+            -H "Content-Type: application/octet-stream" \
+            --data "$CHECKSUM" \
+            "${WORKER_URL}/gems/${CACHE_KEY}.sha256")
+
+          echo "Checksum push: HTTP ${CHECKSUM_STATUS}"
+
+          if [ "$CHECKSUM_STATUS" != "201" ] && [ "$CHECKSUM_STATUS" != "409" ]; then
+            echo "Failed to push checksum: HTTP ${CHECKSUM_STATUS}, rolling back gem"
+            curl -s -o /dev/null -X DELETE \
+              -H "Authorization: Bearer ${API_KEY}" \
+              "${WORKER_URL}/gems/${CACHE_KEY}"
+            exit 1
+          fi
+
+          echo "Success"

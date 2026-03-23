@@ -18,6 +18,14 @@ module Prebake
       platform = Platform.generalized
       cache_key = CacheKey.for(@spec.name, @spec.version.to_s, platform)
 
+      expected_checksum = Prebake.backend.fetch_checksum(cache_key)
+
+      if expected_checksum.nil? && Prebake.backend.checksums_supported?
+        Logger.warn "No checksum available for #{cache_key}, removing cached gem"
+        Prebake.backend.delete(cache_key)
+        return super
+      end
+
       begin
         cached_gem = Prebake.backend.fetch(cache_key)
       rescue StandardError => e
@@ -30,30 +38,19 @@ module Prebake
         return super
       end
 
-      # Verify checksum if available
-      if verify_checksum(cache_key, cached_gem)
+      if verify_checksum(cache_key, expected_checksum, cached_gem)
         install_from_cache(cached_gem)
       else
-        Logger.warn "Checksum mismatch for #{cache_key}, compiling from source"
         super
       end
     ensure
-      FileUtils.rm_f(cached_gem) if cached_gem && File.exist?(cached_gem.to_s)
+      FileUtils.rm_f(cached_gem) if cached_gem
     end
 
     private
 
-    def verify_checksum(cache_key, gem_path)
-      expected = Prebake.backend.fetch_checksum(cache_key)
-
-      if expected.nil?
-        if ENV.fetch("PREBAKE_REQUIRE_CHECKSUM", "false") == "true"
-          Logger.warn "No checksum available for #{cache_key} and PREBAKE_REQUIRE_CHECKSUM=true, rejecting"
-          return false
-        end
-        Logger.warn "No checksum available for #{cache_key}, skipping verification"
-        return true
-      end
+    def verify_checksum(cache_key, expected, gem_path)
+      return true if expected.nil?
 
       actual = Digest::SHA256.file(gem_path).hexdigest
       if actual == expected

@@ -29,4 +29,10 @@ class S3BackendTest < Minitest::Test
       refute @backend.exists?(@cache_key)
     end
   end
+
+  def test_delete_returns_false_when_sdk_not_available
+    @backend.stub(:sdk_available?, false) do
+      refute @backend.delete(@cache_key)
+    end
+  end
 end

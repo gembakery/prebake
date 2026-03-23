@@ -7,7 +7,8 @@ module Prebake
     module HttpClient
       TIMEOUT = 30
       HTTP_METHODS = { get: Net::HTTP::Get, head: Net::HTTP::Head,
-                       post: Net::HTTP::Post, put: Net::HTTP::Put }.freeze
+                       post: Net::HTTP::Post, put: Net::HTTP::Put,
+                       delete: Net::HTTP::Delete }.freeze
 
       private
 
