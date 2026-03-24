@@ -1,7 +1,8 @@
 import { triggerBuild } from "./build-trigger.js";
-import { timingSafeEqual } from "./utils.js";
+import { requireAuth, timingSafeEqual } from "./utils.js";
 
 const MAX_UPLOAD_SIZE = 50 * 1024 * 1024; // 50MB
+const MAX_CHECKSUM_SIZE = 128; // generous upper bound; SHA-256 hex is 64 chars
 
 export async function handleGet(cacheKey, env, ctx, clientIp) {
   const object = await env.R2_BUCKET.get(cacheKey);
@@ -40,10 +41,8 @@ export async function handleHead(cacheKey, env) {
 }
 
 export async function handlePut(request, cacheKey, env) {
-  const authHeader = request.headers.get("Authorization") || "";
-  if (!(await timingSafeEqual(`Bearer ${env.API_KEY}`, authHeader))) {
-    return new Response("Unauthorized", { status: 401 });
-  }
+  const denied = await requireAuth(request, env);
+  if (denied) return denied;
 
   const buildNonce = request.headers.get("X-Build-Nonce");
   if (!buildNonce) {
@@ -90,6 +89,45 @@ export async function handlePut(request, cacheKey, env) {
   });
 
   await env.R2_BUCKET.delete(pendingKey);
+
+  return new Response("OK", { status: 201 });
+}
+
+export async function handleDelete(request, cacheKey, env) {
+  const denied = await requireAuth(request, env);
+  if (denied) return denied;
+
+  await env.R2_BUCKET.delete(cacheKey);
+  return new Response("OK", { status: 200 });
+}
+
+export async function handleGetChecksum(checksumKey, env) {
+  const object = await env.R2_BUCKET.get(checksumKey);
+
+  if (!object) {
+    return new Response("Not found", { status: 404 });
+  }
+
+  return new Response(object.body, {
+    headers: {
+      "Content-Type": "text/plain",
+      "Cache-Control": "public, max-age=31536000, immutable",
+    },
+  });
+}
+
+export async function handlePutChecksum(request, checksumKey, env) {
+  const denied = await requireAuth(request, env);
+  if (denied) return denied;
+
+  const body = await request.text();
+  if (body.length > MAX_CHECKSUM_SIZE) {
+    return new Response("Checksum too large", { status: 413 });
+  }
+
+  await env.R2_BUCKET.put(checksumKey, body, {
+    httpMetadata: { contentType: "text/plain" },
+  });
 
   return new Response("OK", { status: 201 });
 }
