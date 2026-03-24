@@ -40,3 +40,7 @@ Naming/PredicateMethod:
 
 Naming/VariableNumber:
   Enabled: false
+
+Naming/FileName:
+  Exclude:
+    - "test/stubs/**/*"
