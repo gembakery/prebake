@@ -70,6 +70,11 @@ class HttpBackendTest < Minitest::Test
     refute @backend.delete(@cache_key)
   end
 
+  def test_warns_on_insecure_http_url
+    Prebake::Logger.expects(:warn).with(regexp_matches(/[Ii]nsecure HTTP/))
+    Prebake::Backends::Http.new(url: "http://insecure.example.com", token: "secret")
+  end
+
   def test_push_cleans_up_gem_when_checksum_push_fails
     stub_request(:put, "https://prebake.internal/gems/#{@cache_key}")
       .to_return(status: 201)
