@@ -24,25 +24,12 @@ class LoggerTest < Minitest::Test
     assert_equal "  [prebake] WARN: recursion check", result
   end
 
-  def test_warn_suppressed_on_darwin_with_default_host
-    skip "darwin-only test" unless RUBY_PLATFORM.include?("darwin")
-
-    assert_nil capture_log_output(:warn, "should be suppressed")
-  end
-
   def test_warn_not_suppressed_on_darwin_with_custom_url
     skip "darwin-only test" unless RUBY_PLATFORM.include?("darwin")
 
     result = capture_log_output(:warn, "should not be suppressed",
                                 env: { "PREBAKE_HTTP_URL" => "https://custom.example.com" })
     assert_equal "  [prebake] WARN: should not be suppressed", result
-  end
-
-  def test_warn_suppressed_on_darwin_with_trailing_slash_url
-    skip "darwin-only test" unless RUBY_PLATFORM.include?("darwin")
-
-    assert_nil capture_log_output(:warn, "trailing slash check",
-                                  env: { "PREBAKE_HTTP_URL" => "#{Prebake::DEFAULT_HTTP_URL}/" })
   end
 
   def test_warn_not_suppressed_on_darwin_with_non_http_backend
@@ -59,14 +46,14 @@ class LoggerTest < Minitest::Test
     assert_equal "  [prebake] WARN: linux warning", result
   end
 
-  def test_debug_unaffected_by_darwin_suppression
+  def test_debug_respects_level_gating
     skip "darwin-only test" unless RUBY_PLATFORM.include?("darwin")
 
     result = capture_log_output(:debug, "debug msg", env: { "PREBAKE_LOG_LEVEL" => "debug" })
     assert_equal "  [prebake] debug msg", result
   end
 
-  def test_info_unaffected_by_darwin_suppression
+  def test_info_respects_level_gating
     skip "darwin-only test" unless RUBY_PLATFORM.include?("darwin")
 
     result = capture_log_output(:info, "info msg", env: { "PREBAKE_LOG_LEVEL" => "info" })
