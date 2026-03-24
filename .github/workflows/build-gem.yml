@@ -92,6 +92,8 @@ jobs:
             libvips-dev \
             libffi-dev \
             libyaml-dev
+          # Fix permissions so actions/cache post step can tar the archives
+          sudo chmod -R a+r /var/cache/apt/archives
 
       - name: Install rubygems-build-binary
         run: gem install rubygems-build-binary -v 0.0.2
