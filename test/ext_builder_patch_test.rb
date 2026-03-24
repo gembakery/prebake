@@ -57,13 +57,13 @@ class ExtBuilderPatchTest < Minitest::Test
     assert File.exist?(@build_complete), "gem_build_complete marker should be written"
   end
 
-  def test_deletes_cached_gem_when_no_checksum_available
+  def test_deletes_and_triggers_rebuild_when_no_checksum_available
     spec = make_spec
     backend = mock("backend")
     backend.expects(:fetch_checksum).with(cache_key).returns(nil)
     backend.expects(:checksums_supported?).returns(true)
     backend.expects(:delete).with(cache_key)
-    backend.expects(:fetch).never
+    backend.expects(:fetch).with(cache_key).returns(nil)
     Prebake.backend = backend
     Prebake::Extractor.expects(:install).never
     assert_raises(Gem::Ext::BuildError) { build(spec) }
