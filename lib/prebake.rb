@@ -7,6 +7,7 @@ module Prebake
 
   # major.minor only - ABI is stable across patch versions
   RUBY_ABI_VERSION = "#{RbConfig::CONFIG['MAJOR']}.#{RbConfig::CONFIG['MINOR']}".freeze
+  DEFAULT_HTTP_URL = "https://gems.prebake.in"
 
   @backend_mutex = Mutex.new
 
@@ -80,7 +81,7 @@ module Prebake
         )
       when "http"
         require_relative "prebake/backends/http"
-        url = ENV.fetch("PREBAKE_HTTP_URL", "https://gems.prebake.in")
+        url = ENV.fetch("PREBAKE_HTTP_URL", DEFAULT_HTTP_URL)
         Backends::Http.new(url:, token: ENV.fetch("PREBAKE_HTTP_TOKEN", nil))
       else
         raise Error, "Unknown backend: #{backend_type}. Use gemstash, s3, or http."
