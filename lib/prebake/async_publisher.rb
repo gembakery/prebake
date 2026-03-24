@@ -9,39 +9,17 @@ require_relative "logger"
 module Prebake
   module AsyncPublisher
     @pending_specs = []
-    @threads = []
     @mutex = Mutex.new
 
     def self.reset!
-      @mutex.synchronize do
-        @pending_specs.clear
-        @threads.clear
-      end
+      @mutex.synchronize { @pending_specs.clear }
     end
 
-    # Queue a spec for later processing (no threads, no chdir)
     def self.enqueue(spec, backend)
       @mutex.synchronize { @pending_specs << [spec, backend] }
     end
 
-    # For testing - enqueue a raw block for async execution
-    def self.enqueue_block(&block)
-      thread = Thread.new do
-        block.call
-      rescue StandardError => e
-        Logger.warn "Error in background task: #{e.message}"
-      end
-
-      @mutex.synchronize { @threads << thread }
-    end
-
-    # Build all queued gems (serial, safe for Dir.chdir) then push in parallel
     def self.wait_for_completion(timeout: 120)
-      # First, wait for any raw block threads (from tests)
-      block_threads = @mutex.synchronize { @threads.dup }
-      block_threads.each { |t| t.join(timeout) }
-
-      # Then process queued specs
       specs = @mutex.synchronize { @pending_specs.dup }
       return if specs.empty?
 
@@ -71,10 +49,7 @@ module Prebake
 
       Logger.info "All pushes complete."
 
-      @mutex.synchronize do
-        @pending_specs.clear
-        @threads.clear
-      end
+      @mutex.synchronize { @pending_specs.clear }
     end
 
     def self.build_gem(spec, backend)
