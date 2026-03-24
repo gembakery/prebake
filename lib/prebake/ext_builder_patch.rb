@@ -23,6 +23,9 @@ module Prebake
       if expected_checksum.nil? && Prebake.backend.checksums_supported?
         Logger.warn "No checksum available for #{cache_key}, removing cached gem"
         Prebake.backend.delete(cache_key)
+        # GET triggers the worker to dispatch a rebuild via GH Actions on cache miss
+        trigger_path = Prebake.backend.fetch(cache_key)
+        FileUtils.rm_f(trigger_path) if trigger_path
         return super
       end
 
