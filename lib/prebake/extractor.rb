@@ -45,6 +45,8 @@ module Prebake
 
       Logger.info "Installed precompiled #{File.basename(gem_path)} " \
                   "(#{extracted_count} binary files)"
+
+      extracted_count
     rescue StandardError => e
       Logger.warn "Extraction failed for #{File.basename(gem_path)}: #{e.message}"
       raise
