@@ -72,6 +72,26 @@ class PlatformGemBuilderTest < Minitest::Test
     FileUtils.rm_f(gem_path) if gem_path
   end
 
+  def test_excludes_deeply_nested_platform_artifacts_from_extension_dir
+    spec = create_installed_gem_with_extension
+
+    # Simulate a dirty extension_dir with artifacts from prior extractions
+    ext = RUBY_PLATFORM.include?("darwin") ? "bundle" : "so"
+    nested = File.join(spec.extension_dir, "extension", "x86_64-linux", "4.0.0")
+    FileUtils.mkdir_p(nested)
+    File.write(File.join(nested, "testgem.#{ext}"), "STALE_ARTIFACT")
+
+    builder = Prebake::PlatformGemBuilder.new(spec)
+    gem_path = builder.build
+
+    package = Gem::Package.new(gem_path)
+    binary_files = package.spec.files.select { |f| f.end_with?(".#{ext}") }
+    assert_equal 1, binary_files.size, "Should only include root-level binary, not deeply nested artifacts"
+    assert_equal "testgem.#{ext}", binary_files.first
+  ensure
+    FileUtils.rm_f(gem_path) if gem_path
+  end
+
   private
 
   def create_installed_gem_with_extension
