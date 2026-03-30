@@ -76,14 +76,16 @@ class PlatformGemBuilderTest < Minitest::Test
 
   def create_installed_gem_with_extension
     gem_dir = File.join(@tmpdir, "testgem-1.0.0")
+    extension_dir = File.join(@tmpdir, "extensions", "testgem-1.0.0")
     FileUtils.mkdir_p(File.join(gem_dir, "lib/testgem"))
     FileUtils.mkdir_p(File.join(gem_dir, "ext/testgem"))
+    FileUtils.mkdir_p(extension_dir)
 
     File.write(File.join(gem_dir, "lib/testgem.rb"), "# test")
 
-    # Simulate a compiled .so/.bundle
+    # Simulate a compiled .so/.bundle in extension_dir (where make install puts it)
     ext = RUBY_PLATFORM.include?("darwin") ? "bundle" : "so"
-    File.write(File.join(gem_dir, "lib/testgem/testgem.#{ext}"), "FAKE_BINARY")
+    File.write(File.join(extension_dir, "testgem.#{ext}"), "FAKE_BINARY")
 
     spec = Gem::Specification.new do |s|
       s.name = "testgem"
@@ -97,9 +99,10 @@ class PlatformGemBuilderTest < Minitest::Test
       s.files = ["lib/testgem.rb"]
     end
 
-    # Stub gem_dir to point to our temp directory
+    # Stub gem_dir and extension_dir to point to our temp directories
     spec.define_singleton_method(:gem_dir) { gem_dir }
     spec.define_singleton_method(:full_gem_path) { gem_dir }
+    spec.define_singleton_method(:extension_dir) { extension_dir }
 
     spec
   end
