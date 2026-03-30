@@ -55,8 +55,14 @@ module Prebake
 
       ext_dir = @spec.extension_dir
       if ext_dir && File.directory?(ext_dir)
-        Dir.glob(File.join(ext_dir, "**/*.{so,bundle,dll}")).each do |binary|
+        # Collect binaries at root and one level deep (e.g., nokogiri/nokogiri.so).
+        # Skip deeper paths which are platform artifacts from dirty extension_dirs
+        # (e.g., extension/x86_64-linux/4.0.0/gem.so left by prior extractions).
+        binaries = Dir.glob(File.join(ext_dir, "*.{so,bundle,dll}")) +
+                   Dir.glob(File.join(ext_dir, "*/*.{so,bundle,dll}"))
+        binaries.each do |binary|
           next if File.symlink?(binary)
+          next if File.size(binary).zero?
           relative = binary.delete_prefix("#{ext_dir}/")
           dest = File.join(build_dir, relative)
           FileUtils.mkdir_p(File.dirname(dest))
