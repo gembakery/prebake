@@ -38,7 +38,10 @@ module Prebake
       end
 
       if verify_checksum(cache_key, expected_checksum, cached_gem)
-        install_from_cache(cached_gem, cache_key) || super
+        unless install_from_cache(cached_gem)
+          Prebake.backend.delete(cache_key)
+          return super
+        end
       else
         super
       end
@@ -68,12 +71,11 @@ module Prebake
       end
     end
 
-    def install_from_cache(gem_path, cache_key)
+    def install_from_cache(gem_path)
       count = Extractor.install(gem_path, @spec)
 
-      if count == 0
+      if count.zero?
         Logger.warn "No binaries found in cached gem for #{@spec.name}, falling back to source build"
-        Prebake.backend.delete(cache_key)
         return false
       end
 
