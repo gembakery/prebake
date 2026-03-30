@@ -119,4 +119,18 @@ class ExtBuilderPatchTest < Minitest::Test
     Prebake.backend = nil
     assert_raises(Gem::Ext::BuildError) { build(spec) }
   end
+
+  def test_deletes_cache_and_falls_back_when_extraction_raises
+    spec = make_spec
+    gem_path = fake_gem_path
+    checksum = Digest::SHA256.file(gem_path).hexdigest
+    backend = mock("backend")
+    backend.expects(:fetch_checksum).with(cache_key).returns(checksum)
+    backend.expects(:fetch).with(cache_key).returns(gem_path)
+    backend.expects(:delete).with(cache_key)
+    Prebake.backend = backend
+    Prebake::Extractor.expects(:install).with(gem_path, spec).raises(StandardError, "corrupt gem")
+    assert_raises(Gem::Ext::BuildError) { build(spec) }
+    refute File.exist?(@build_complete), "gem_build_complete marker should not be written"
+  end
 end
