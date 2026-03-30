@@ -44,7 +44,7 @@ class ExtBuilderPatchTest < Minitest::Test
 
   def build(spec) = Gem::Ext::Builder.new(spec, "").build_extensions
 
-  def test_skips_compilation_when_cache_hit_with_valid_checksum
+  def stub_verified_cache_hit
     spec = make_spec
     gem_path = fake_gem_path
     checksum = Digest::SHA256.file(gem_path).hexdigest
@@ -52,6 +52,11 @@ class ExtBuilderPatchTest < Minitest::Test
     backend.expects(:fetch_checksum).with(cache_key).returns(checksum)
     backend.expects(:fetch).with(cache_key).returns(gem_path)
     Prebake.backend = backend
+    [spec, backend, gem_path]
+  end
+
+  def test_skips_compilation_when_cache_hit_with_valid_checksum
+    spec, _backend, gem_path = stub_verified_cache_hit
     Prebake::Extractor.expects(:install).with(gem_path, spec).returns(1)
     build(spec)
     assert File.exist?(@build_complete), "gem_build_complete marker should be written"
@@ -101,14 +106,8 @@ class ExtBuilderPatchTest < Minitest::Test
   end
 
   def test_deletes_cache_and_falls_back_when_no_binaries_in_cached_gem
-    spec = make_spec
-    gem_path = fake_gem_path
-    checksum = Digest::SHA256.file(gem_path).hexdigest
-    backend = mock("backend")
-    backend.expects(:fetch_checksum).with(cache_key).returns(checksum)
-    backend.expects(:fetch).with(cache_key).returns(gem_path)
+    spec, backend, gem_path = stub_verified_cache_hit
     backend.expects(:delete).with(cache_key)
-    Prebake.backend = backend
     Prebake::Extractor.expects(:install).with(gem_path, spec).returns(0)
     assert_raises(Gem::Ext::BuildError) { build(spec) }
     refute File.exist?(@build_complete), "gem_build_complete marker should not be written"
@@ -118,5 +117,13 @@ class ExtBuilderPatchTest < Minitest::Test
     spec = make_spec
     Prebake.backend = nil
     assert_raises(Gem::Ext::BuildError) { build(spec) }
+  end
+
+  def test_deletes_cache_and_falls_back_when_extraction_raises
+    spec, backend, gem_path = stub_verified_cache_hit
+    backend.expects(:delete).with(cache_key)
+    Prebake::Extractor.expects(:install).with(gem_path, spec).raises(StandardError, "corrupt gem")
+    assert_raises(Gem::Ext::BuildError) { build(spec) }
+    refute File.exist?(@build_complete), "gem_build_complete marker should not be written"
   end
 end
