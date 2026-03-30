@@ -12,11 +12,13 @@ module Prebake
         @bucket = bucket
         @region = region
         @prefix = prefix
+
+        require "aws-sdk-s3"
+      rescue LoadError
+        raise Prebake::Error, "aws-sdk-s3 gem is required for S3 backend"
       end
 
       def fetch(cache_key)
-        return nil unless sdk_available?
-
         response = client.get_object(bucket: @bucket, key: object_key(cache_key))
         path = File.join(Dir.tmpdir, "prebake-#{SecureRandom.hex(16)}.gem")
         File.binwrite(path, response.body.read)
@@ -27,8 +29,6 @@ module Prebake
       end
 
       def fetch_checksum(cache_key)
-        return nil unless sdk_available?
-
         response = client.get_object(bucket: @bucket, key: checksum_key(cache_key))
         response.body.read.strip
       rescue StandardError => e
@@ -37,8 +37,6 @@ module Prebake
       end
 
       def push(gem_path, cache_key, checksum)
-        return false unless sdk_available?
-
         gem_key = object_key(cache_key)
         File.open(gem_path, "rb") do |file|
           client.put_object(bucket: @bucket, key: gem_key, body: file)
@@ -60,8 +58,6 @@ module Prebake
       end
 
       def exists?(cache_key)
-        return false unless sdk_available?
-
         client.head_object(bucket: @bucket, key: object_key(cache_key))
         true
       rescue StandardError
@@ -69,8 +65,6 @@ module Prebake
       end
 
       def delete(cache_key)
-        return false unless sdk_available?
-
         client.delete_object(bucket: @bucket, key: object_key(cache_key))
         client.delete_object(bucket: @bucket, key: checksum_key(cache_key))
         Logger.info "Deleted #{cache_key} from S3"
@@ -88,14 +82,6 @@ module Prebake
 
       def checksum_key(cache_key)
         "#{object_key(cache_key)}.sha256"
-      end
-
-      def sdk_available?
-        require "aws-sdk-s3"
-        true
-      rescue LoadError
-        Logger.warn "aws-sdk-s3 not available. Install it to use S3 backend."
-        false
       end
 
       def client

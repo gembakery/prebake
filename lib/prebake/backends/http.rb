@@ -15,13 +15,7 @@ module Prebake
         @url = url.chomp("/")
         @token = token
 
-        return if @url.start_with?("https://") || ENV.fetch("PREBAKE_ALLOW_INSECURE", "false") == "true"
-        return unless @url.start_with?("http://")
-
-        Logger.warn(
-          "Using insecure HTTP connection to #{@url}. " \
-          "Set PREBAKE_ALLOW_INSECURE=true to suppress this warning."
-        )
+        warn_if_insecure_http(@url)
       end
 
       def fetch(cache_key)

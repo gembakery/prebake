@@ -100,6 +100,14 @@ class GemstashBackendTest < Minitest::Test
     refute @backend.exists?(@cache_key)
   end
 
+  def test_warns_on_insecure_http_url
+    ENV.delete("PREBAKE_ALLOW_INSECURE")
+    Prebake::Logger.expects(:warn).with(regexp_matches(/[Ii]nsecure HTTP/))
+    Prebake::Backends::Gemstash.new(url: "http://insecure.example.com", key: "api-key")
+  ensure
+    ENV["PREBAKE_ALLOW_INSECURE"] = "true"
+  end
+
   def test_gemstash_filename_strips_ruby_abi
     # Verify the internal mapping
     assert_equal "puma-6.4.3-arm64-darwin.gem",
