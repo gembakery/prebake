@@ -72,10 +72,32 @@ class PlatformGemBuilderTest < Minitest::Test
     FileUtils.rm_f(gem_path) if gem_path
   end
 
-  def test_excludes_deeply_nested_platform_artifacts_from_extension_dir
+  def test_collects_extension_platform_abi_binaries_normalized_to_root
     spec = create_installed_gem_with_extension
 
-    # Simulate a dirty extension_dir with artifacts from prior extractions
+    # Remove root-level binary, simulate Ruby 4.0 layout where make install
+    # places the .so under extension/<platform>/<abi>/ inside extension_dir
+    ext = RUBY_PLATFORM.include?("darwin") ? "bundle" : "so"
+    FileUtils.rm_f(File.join(spec.extension_dir, "testgem.#{ext}"))
+    nested = File.join(spec.extension_dir, "extension", "x86_64-linux", "4.0.0")
+    FileUtils.mkdir_p(nested)
+    File.write(File.join(nested, "testgem.#{ext}"), "RUBY40_BINARY")
+
+    builder = Prebake::PlatformGemBuilder.new(spec)
+    gem_path = builder.build
+
+    package = Gem::Package.new(gem_path)
+    binary_files = package.spec.files.select { |f| f.end_with?(".#{ext}") }
+    assert_equal 1, binary_files.size, "Should include extension/<platform>/<abi>/ binary normalized to root"
+    assert_equal "testgem.#{ext}", binary_files.first
+  ensure
+    FileUtils.rm_f(gem_path) if gem_path
+  end
+
+  def test_prefers_root_level_binary_over_nested_extension_path
+    spec = create_installed_gem_with_extension
+
+    # Both root-level and nested binaries exist — root should win
     ext = RUBY_PLATFORM.include?("darwin") ? "bundle" : "so"
     nested = File.join(spec.extension_dir, "extension", "x86_64-linux", "4.0.0")
     FileUtils.mkdir_p(nested)
@@ -86,7 +108,7 @@ class PlatformGemBuilderTest < Minitest::Test
 
     package = Gem::Package.new(gem_path)
     binary_files = package.spec.files.select { |f| f.end_with?(".#{ext}") }
-    assert_equal 1, binary_files.size, "Should only include root-level binary, not deeply nested artifacts"
+    assert_equal 1, binary_files.size, "Should only include root-level binary when both exist"
     assert_equal "testgem.#{ext}", binary_files.first
   ensure
     FileUtils.rm_f(gem_path) if gem_path
