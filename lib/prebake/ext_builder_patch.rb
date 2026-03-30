@@ -38,7 +38,14 @@ module Prebake
       end
 
       if verify_checksum(cache_key, expected_checksum, cached_gem)
-        unless install_from_cache(cached_gem)
+        installed = begin
+          install_from_cache(cached_gem)
+        rescue StandardError => e
+          Logger.warn "Cache install failed for #{@spec.name}: #{e.message}, falling back to source build"
+          false
+        end
+
+        unless installed
           Prebake.backend.delete(cache_key)
           return super
         end
