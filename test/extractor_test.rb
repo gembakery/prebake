@@ -19,7 +19,7 @@ class ExtractorTest < Minitest::Test
   def test_extracts_so_files_to_extension_dir
     gem_path = build_fake_platform_gem(
       "testgem", "1.0.0",
-      files: { "lib/testgem/testgem.so" => "fake-shared-object" }
+      files: { "testgem.so" => "fake-shared-object" }
     )
 
     spec = mock("spec")
@@ -27,7 +27,7 @@ class ExtractorTest < Minitest::Test
 
     Prebake::Extractor.install(gem_path, spec)
 
-    extracted = File.join(@extension_dir, "lib/testgem/testgem.so")
+    extracted = File.join(@extension_dir, "testgem.so")
     assert File.exist?(extracted), "Expected #{extracted} to exist"
     assert_equal "fake-shared-object", File.read(extracted)
   end
@@ -35,7 +35,7 @@ class ExtractorTest < Minitest::Test
   def test_extracts_bundle_files_to_extension_dir
     gem_path = build_fake_platform_gem(
       "testgem", "1.0.0",
-      files: { "lib/testgem/testgem.bundle" => "fake-bundle" }
+      files: { "testgem.bundle" => "fake-bundle" }
     )
 
     spec = mock("spec")
@@ -43,7 +43,7 @@ class ExtractorTest < Minitest::Test
 
     Prebake::Extractor.install(gem_path, spec)
 
-    extracted = File.join(@extension_dir, "lib/testgem/testgem.bundle")
+    extracted = File.join(@extension_dir, "testgem.bundle")
     assert File.exist?(extracted), "Expected #{extracted} to exist"
   end
 
@@ -51,7 +51,7 @@ class ExtractorTest < Minitest::Test
     gem_path = build_fake_platform_gem(
       "testgem", "1.0.0",
       files: {
-        "lib/testgem/testgem.so" => "binary",
+        "testgem.so" => "binary",
         "lib/testgem/version.rb" => "VERSION = '1.0.0'"
       }
     )
@@ -61,8 +61,40 @@ class ExtractorTest < Minitest::Test
 
     Prebake::Extractor.install(gem_path, spec)
 
-    assert File.exist?(File.join(@extension_dir, "lib/testgem/testgem.so"))
+    assert File.exist?(File.join(@extension_dir, "testgem.so"))
     refute File.exist?(File.join(@extension_dir, "lib/testgem/version.rb"))
+  end
+
+  def test_strips_ext_prefix_from_legacy_cached_gems
+    gem_path = build_fake_platform_gem(
+      "testgem", "1.0.0",
+      files: { "ext/testgem/testgem.so" => "legacy-binary" }
+    )
+
+    spec = mock("spec")
+    spec.stubs(:extension_dir).returns(@extension_dir)
+
+    Prebake::Extractor.install(gem_path, spec)
+
+    extracted = File.join(@extension_dir, "testgem.so")
+    assert File.exist?(extracted), "Expected legacy ext/ prefix to be stripped"
+    assert_equal "legacy-binary", File.read(extracted)
+  end
+
+  def test_strips_lib_prefix_from_legacy_cached_gems
+    gem_path = build_fake_platform_gem(
+      "testgem", "1.0.0",
+      files: { "lib/testgem/testgem.so" => "legacy-binary" }
+    )
+
+    spec = mock("spec")
+    spec.stubs(:extension_dir).returns(@extension_dir)
+
+    Prebake::Extractor.install(gem_path, spec)
+
+    extracted = File.join(@extension_dir, "testgem/testgem.so")
+    assert File.exist?(extracted), "Expected lib/ prefix to be stripped"
+    assert_equal "legacy-binary", File.read(extracted)
   end
 
   private

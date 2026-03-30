@@ -48,6 +48,22 @@ module Prebake
       platform_spec.platform = Gem::Platform.new(Platform.generalized)
       platform_spec.extensions = []
 
+      # Remove build-artifact binaries copied from gem_dir (they live at
+      # wrong paths like ext/<name>/<name>.so).  The properly-installed
+      # binaries are in extension_dir, placed there by `make install`.
+      Dir.glob(File.join(build_dir, "**/*.{so,bundle,dll}")).each { |f| File.delete(f) }
+
+      ext_dir = @spec.extension_dir
+      if ext_dir && File.directory?(ext_dir)
+        Dir.glob(File.join(ext_dir, "**/*.{so,bundle,dll}")).each do |binary|
+          next if File.symlink?(binary)
+          relative = binary.delete_prefix("#{ext_dir}/")
+          dest = File.join(build_dir, relative)
+          FileUtils.mkdir_p(File.dirname(dest))
+          FileUtils.cp(binary, dest)
+        end
+      end
+
       prefix = "#{build_dir}/"
       compiled = Dir.glob(File.join(build_dir, "**/*.{so,bundle,dll}"))
                     .map { |f| f.delete_prefix(prefix) }

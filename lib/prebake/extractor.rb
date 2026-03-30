@@ -28,6 +28,14 @@ module Prebake
           next unless real_binary.start_with?("#{real_tmpdir}/")
 
           relative = binary.sub("#{tmpdir}/", "")
+
+          # Normalize paths from legacy cached gems where binaries were
+          # packaged from gem_dir build artifacts instead of extension_dir.
+          # ext/<name>/<name>.so  → <name>.so  (build artifact path)
+          # lib/<name>/<name>.so  → <name>/<name>.so  (gem lib path)
+          relative = relative.sub(%r{\Aext/[^/]+/}, "") if relative.start_with?("ext/")
+          relative = relative.sub(%r{\Alib/}, "") if relative.start_with?("lib/")
+
           dest = File.join(spec.extension_dir, relative)
           FileUtils.mkdir_p(File.dirname(dest))
           FileUtils.cp(binary, dest)
