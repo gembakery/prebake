@@ -56,14 +56,27 @@ module Prebake
       ext_dir = @spec.extension_dir
       if ext_dir && File.directory?(ext_dir)
         # Collect binaries at root and one level deep (e.g., nokogiri/nokogiri.so).
-        # Skip deeper paths which are platform artifacts from dirty extension_dirs
-        # (e.g., extension/x86_64-linux/4.0.0/gem.so left by prior extractions).
         binaries = Dir.glob(File.join(ext_dir, "*.{so,bundle,dll}")) +
                    Dir.glob(File.join(ext_dir, "*/*.{so,bundle,dll}"))
+
+        # Ruby 4.0+ places compiled extensions in extension/<platform>/<abi>/
+        # within extension_dir.  Collect these too, normalizing their paths
+        # to root level so the cached gem is layout-agnostic.
+        Dir.glob(File.join(ext_dir, "extension/*/*/*.{so,bundle,dll}")).each do |binary|
+          relative = binary.delete_prefix("#{ext_dir}/")
+          normalized = relative.sub(%r{\Aextension/[^/]+/[^/]+/}, "")
+          # Skip if a root-level binary with the same name already exists
+          next if binaries.any? { |b| b.delete_prefix("#{ext_dir}/") == normalized }
+
+          binaries << binary
+        end
+
         binaries.each do |binary|
           next if File.symlink?(binary)
           next if File.size(binary).zero?
           relative = binary.delete_prefix("#{ext_dir}/")
+          # Normalize extension/<platform>/<abi>/ paths to root level
+          relative = relative.sub(%r{\Aextension/[^/]+/[^/]+/}, "")
           dest = File.join(build_dir, relative)
           FileUtils.mkdir_p(File.dirname(dest))
           FileUtils.cp(binary, dest)
