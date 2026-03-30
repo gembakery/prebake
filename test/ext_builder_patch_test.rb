@@ -52,7 +52,7 @@ class ExtBuilderPatchTest < Minitest::Test
     backend.expects(:fetch_checksum).with(cache_key).returns(checksum)
     backend.expects(:fetch).with(cache_key).returns(gem_path)
     Prebake.backend = backend
-    Prebake::Extractor.expects(:install).with(gem_path, spec)
+    Prebake::Extractor.expects(:install).with(gem_path, spec).returns(1)
     build(spec)
     assert File.exist?(@build_complete), "gem_build_complete marker should be written"
   end
@@ -78,7 +78,7 @@ class ExtBuilderPatchTest < Minitest::Test
     backend.expects(:delete).never
     backend.expects(:fetch).with(cache_key).returns(gem_path)
     Prebake.backend = backend
-    Prebake::Extractor.expects(:install).with(gem_path, spec)
+    Prebake::Extractor.expects(:install).with(gem_path, spec).returns(1)
     build(spec)
     assert File.exist?(@build_complete), "gem_build_complete marker should be written"
   end
@@ -98,6 +98,20 @@ class ExtBuilderPatchTest < Minitest::Test
     backend.expects(:fetch).never
     Prebake.backend = backend
     build(spec)
+  end
+
+  def test_deletes_cache_and_falls_back_when_no_binaries_in_cached_gem
+    spec = make_spec
+    gem_path = fake_gem_path
+    checksum = Digest::SHA256.file(gem_path).hexdigest
+    backend = mock("backend")
+    backend.expects(:fetch_checksum).with(cache_key).returns(checksum)
+    backend.expects(:fetch).with(cache_key).returns(gem_path)
+    backend.expects(:delete).with(cache_key)
+    Prebake.backend = backend
+    Prebake::Extractor.expects(:install).with(gem_path, spec).returns(0)
+    assert_raises(Gem::Ext::BuildError) { build(spec) }
+    refute File.exist?(@build_complete), "gem_build_complete marker should not be written"
   end
 
   def test_falls_through_when_backend_nil
