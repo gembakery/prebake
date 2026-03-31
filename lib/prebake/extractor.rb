@@ -46,6 +46,9 @@ module Prebake
         end
       end
 
+      # Mark this extension_dir as prebake-managed for post-install validation
+      FileUtils.touch(File.join(spec.extension_dir, ".prebake")) if extracted_count > 0
+
       Logger.info "Installed precompiled #{File.basename(gem_path)} " \
                   "(#{extracted_count} binary files)"
 
