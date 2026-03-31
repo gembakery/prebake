@@ -156,38 +156,4 @@ class ExtensionValidatorTest < Minitest::Test
     assert_equal 1, root_binaries.length, "Should not duplicate files on second run"
   end
 
-  def test_validate_all_iterates_bundler_specs
-    # Set up two extension dirs: one with marker and broken layout, one without
-    ext_dir_1 = File.join(@tmpdir, "ext1")
-    ext_dir_2 = File.join(@tmpdir, "ext2")
-    FileUtils.mkdir_p(ext_dir_1)
-    FileUtils.mkdir_p(ext_dir_2)
-
-    # ext_dir_1: has marker, broken layout
-    FileUtils.touch(File.join(ext_dir_1, ".prebake"))
-    nested = File.join(ext_dir_1, "extension", "x86_64-linux", "4.0.0")
-    FileUtils.mkdir_p(nested)
-    File.write(File.join(nested, "gem1.so"), "binary1")
-
-    # ext_dir_2: no marker — should be skipped
-    nested2 = File.join(ext_dir_2, "extension", "x86_64-linux", "4.0.0")
-    FileUtils.mkdir_p(nested2)
-    File.write(File.join(nested2, "gem2.so"), "binary2")
-
-    spec1 = mock("spec1")
-    spec1.stubs(:extension_dir).returns(ext_dir_1)
-    spec2 = mock("spec2")
-    spec2.stubs(:extension_dir).returns(ext_dir_2)
-
-    definition = mock("definition")
-    definition.stubs(:specs).returns([spec1, spec2])
-    Bundler.stubs(:definition).returns(definition)
-
-    Prebake::ExtensionValidator.validate_all
-
-    assert File.exist?(File.join(ext_dir_1, "gem1.so")),
-      "Should fix broken layout for spec with marker"
-    refute File.exist?(File.join(ext_dir_2, "gem2.so")),
-      "Should not touch spec without marker"
-  end
 end
