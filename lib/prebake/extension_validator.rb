@@ -7,6 +7,10 @@ module Prebake
   module ExtensionValidator
     BINARY_GLOB = "*.{so,bundle,dll}"
 
+    def self.validate_all
+      Bundler.definition.specs.each { |spec| validate(spec) }
+    end
+
     def self.validate(spec)
       ext_dir = spec.extension_dir
       return unless File.exist?(File.join(ext_dir, ".prebake"))
