@@ -145,6 +145,35 @@ class ExtractorTest < Minitest::Test
     assert_equal "legacy-binary", File.read(extracted)
   end
 
+  def test_writes_prebake_marker_on_successful_extraction
+    gem_path = build_fake_platform_gem(
+      "testgem", "1.0.0",
+      files: { "testgem.so" => "fake-shared-object" }
+    )
+
+    spec = mock("spec")
+    spec.stubs(:extension_dir).returns(@extension_dir)
+
+    Prebake::Extractor.install(gem_path, spec)
+
+    marker = File.join(@extension_dir, ".prebake")
+    assert File.exist?(marker), "Expected .prebake marker to exist after successful extraction"
+    assert_equal 0, File.size(marker), "Marker should be empty"
+  end
+
+  def test_does_not_write_prebake_marker_on_extraction_failure
+    bad_gem = File.join(@tmpdir, "bad.gem")
+    File.write(bad_gem, "not a valid gem")
+
+    spec = mock("spec")
+    spec.stubs(:extension_dir).returns(@extension_dir)
+
+    assert_raises(StandardError) { Prebake::Extractor.install(bad_gem, spec) }
+
+    marker = File.join(@extension_dir, ".prebake")
+    refute File.exist?(marker), "Marker should not exist when extraction raises"
+  end
+
   private
 
   def build_fake_platform_gem(name, version, files:)
