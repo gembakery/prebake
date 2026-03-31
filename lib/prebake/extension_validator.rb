@@ -13,6 +13,21 @@ module Prebake
 
       # Fast path: root-level binaries already present
       return if Dir.glob(File.join(ext_dir, BINARY_GLOB)).any?
+
+      # Scan known-broken nested patterns
+      nested = Dir.glob(File.join(ext_dir, "extension", "*", "*", BINARY_GLOB))
+      nested.concat(Dir.glob(File.join(ext_dir, "lib", BINARY_GLOB)))
+
+      nested.each do |binary|
+        next if File.symlink?(binary)
+        next if File.size(binary).zero?
+
+        dest = File.join(ext_dir, File.basename(binary))
+        next if File.exist?(dest)
+
+        FileUtils.cp(binary, dest)
+        Logger.info "Validator: copied #{File.basename(binary)} to #{ext_dir}"
+      end
     end
   end
 end

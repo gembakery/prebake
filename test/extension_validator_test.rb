@@ -47,4 +47,38 @@ class ExtensionValidatorTest < Minitest::Test
     refute File.exist?(File.join(@extension_dir, "bar.so")),
       "Should not copy nested binaries when root-level binaries already exist"
   end
+
+  def test_fixes_extension_pattern
+    FileUtils.touch(File.join(@extension_dir, ".prebake"))
+
+    nested_dir = File.join(@extension_dir, "extension", "x86_64-linux", "4.0.0")
+    FileUtils.mkdir_p(nested_dir)
+    File.write(File.join(nested_dir, "foo.so"), "binary-content")
+
+    spec = mock("spec")
+    spec.stubs(:extension_dir).returns(@extension_dir)
+
+    Prebake::ExtensionValidator.validate(spec)
+
+    dest = File.join(@extension_dir, "foo.so")
+    assert File.exist?(dest), "Expected foo.so to be copied to extension_dir root"
+    assert_equal "binary-content", File.read(dest)
+  end
+
+  def test_fixes_lib_pattern
+    FileUtils.touch(File.join(@extension_dir, ".prebake"))
+
+    lib_dir = File.join(@extension_dir, "lib")
+    FileUtils.mkdir_p(lib_dir)
+    File.write(File.join(lib_dir, "bar.so"), "lib-binary")
+
+    spec = mock("spec")
+    spec.stubs(:extension_dir).returns(@extension_dir)
+
+    Prebake::ExtensionValidator.validate(spec)
+
+    dest = File.join(@extension_dir, "bar.so")
+    assert File.exist?(dest), "Expected bar.so to be copied to extension_dir root"
+    assert_equal "lib-binary", File.read(dest)
+  end
 end
