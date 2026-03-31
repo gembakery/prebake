@@ -176,12 +176,13 @@ PREBAKE_LOG_LEVEL=debug bundle install
 
 - `Backend initialization failed`: check your backend URL and credentials. The plugin disables itself gracefully and Bundler continues normally.
 - `Checksum mismatch`: the downloaded binary doesn't match the stored SHA-256. The plugin automatically falls back to compiling from source.
+- `LoadError: cannot load such file -- bigdecimal.so` (Ruby 4.0): RubyGems 4 [stopped copying `.so` files into `lib/`](https://github.com/ruby/rubygems/pull/9240), and Bundler 2.5.x doesn't properly resolve the new extension directory layout. This is a Bundler bug, not a prebake issue. Fix it by upgrading Bundler: `gem install bundler && bundle update --bundler`. If you're using `ruby/setup-ruby` with `bundler-cache: true` in CI, also delete the stale Actions cache so the extensions are rebuilt with the new Bundler.
 - To disable for a single run: `PREBAKE_ENABLED=false bundle install`.
 
 ## Compatibility
 
 - **Ruby**: 3.2, 3.3, 3.4, 4.0+
-- **Bundler**: 2.4+
+- **Bundler**: 2.4+ (Ruby 4.0 users should use Bundler 4.x — see [Troubleshooting](#troubleshooting))
 - **OS**: Linux (x86_64, aarch64, glibc and musl) via cloud service; other platforms via self-hosted
 
 ## License
