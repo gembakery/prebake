@@ -2,7 +2,7 @@
 
 Gem::Specification.new do |spec|
   spec.name          = "prebake"
-  spec.version       = "0.2.9"
+  spec.version       = "0.2.10"
   spec.authors       = ["Thejus Paul"]
   spec.email         = ["thejuspaul@pm.me"]
 
