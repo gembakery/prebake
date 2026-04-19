@@ -177,31 +177,6 @@ class ExtractorTest < Minitest::Test
   private
 
   def build_fake_platform_gem(name, version, files:)
-    spec = Gem::Specification.new do |s|
-      s.name = name
-      s.version = version
-      s.platform = Gem::Platform.local
-      s.authors = ["Test"]
-      s.summary = "Test gem"
-      s.homepage = "https://example.com"
-      s.license = "MIT"
-      s.files = files.keys
-    end
-
-    gem_dir = File.join(@tmpdir, "build")
-    FileUtils.mkdir_p(gem_dir)
-
-    files.each do |path, content|
-      full_path = File.join(gem_dir, path)
-      FileUtils.mkdir_p(File.dirname(full_path))
-      File.write(full_path, content)
-    end
-
-    gem_file = nil
-    Dir.chdir(gem_dir) do
-      gem_file = Gem::Package.build(spec)
-    end
-
-    File.join(gem_dir, gem_file)
+    build_test_gem(name: name, version: version, files: files)
   end
 end
