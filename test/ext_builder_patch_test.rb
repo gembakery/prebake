@@ -37,9 +37,7 @@ class ExtBuilderPatchTest < Minitest::Test
   def cache_key = Prebake::CacheKey.for("testgem", "1.0.0", Prebake::Platform.generalized)
 
   def fake_gem_path
-    path = File.join(@tmpdir, "fake.gem")
-    File.write(path, "fake")
-    path
+    build_test_gem
   end
 
   def build(spec) = Gem::Ext::Builder.new(spec, "").build_extensions
@@ -125,5 +123,53 @@ class ExtBuilderPatchTest < Minitest::Test
     Prebake::Extractor.expects(:install).with(gem_path, spec).raises(StandardError, "corrupt gem")
     assert_raises(Gem::Ext::BuildError) { build(spec) }
     refute File.exist?(@build_complete), "gem_build_complete marker should not be written"
+  end
+
+  def test_falls_back_without_deleting_when_glibc_incompatible
+    Prebake::Glibc.stubs(:linux?).returns(true)
+    spec, backend, gem_path = stub_verified_cache_hit
+    Prebake::ElfInspector.stubs(:required_glibc_for_gem).with(gem_path).returns("2.39")
+    Prebake::Glibc.stubs(:compatible?).with("2.39").returns(false)
+    backend.expects(:delete).never
+    Prebake::Extractor.expects(:install).never
+
+    assert_raises(Gem::Ext::BuildError) { build(spec) }
+    refute File.exist?(@build_complete), "gem_build_complete marker should not be written"
+  end
+
+  def test_proceeds_normally_when_glibc_compatible
+    Prebake::Glibc.stubs(:linux?).returns(true)
+    spec, _backend, gem_path = stub_verified_cache_hit
+    Prebake::ElfInspector.stubs(:required_glibc_for_gem).with(gem_path).returns("2.17")
+    Prebake::Glibc.stubs(:compatible?).with("2.17").returns(true)
+    Prebake::Extractor.expects(:install).with(gem_path, spec).returns(1)
+
+    build(spec)
+    assert File.exist?(@build_complete)
+  end
+
+  def test_skips_portability_check_when_env_set
+    ENV["PREBAKE_SKIP_PORTABILITY_CHECK"] = "true"
+    Prebake::Glibc.stubs(:linux?).returns(true)
+    spec, _backend, gem_path = stub_verified_cache_hit
+    Prebake::ElfInspector.expects(:required_glibc_for_gem).never
+    Prebake::Glibc.expects(:compatible?).never
+    Prebake::Extractor.expects(:install).with(gem_path, spec).returns(1)
+
+    build(spec)
+    assert File.exist?(@build_complete)
+  ensure
+    ENV.delete("PREBAKE_SKIP_PORTABILITY_CHECK")
+  end
+
+  def test_skips_portability_check_on_non_linux
+    Prebake::Glibc.stubs(:linux?).returns(false)
+    spec, _backend, gem_path = stub_verified_cache_hit
+    Prebake::ElfInspector.expects(:required_glibc_for_gem).never
+    Prebake::Glibc.expects(:compatible?).never
+    Prebake::Extractor.expects(:install).with(gem_path, spec).returns(1)
+
+    build(spec)
+    assert File.exist?(@build_complete)
   end
 end

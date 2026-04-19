@@ -20,7 +20,9 @@ class LoggerTest < Minitest::Test
   end
 
   def test_warn_does_not_stack_overflow_without_bundler_ui
-    result = capture_log_output(:warn, "recursion check", env: { "PREBAKE_HTTP_URL" => "https://custom.example.com" })
+    result = capture_log_output(:warn, "recursion check",
+                                env: { "PREBAKE_HTTP_URL" => "https://custom.example.com",
+                                       "PREBAKE_LOG_LEVEL" => "warn" })
     assert_equal "  [prebake] WARN: recursion check", result
   end
 
@@ -28,21 +30,23 @@ class LoggerTest < Minitest::Test
     skip "darwin-only test" unless RUBY_PLATFORM.include?("darwin")
 
     result = capture_log_output(:warn, "should not be suppressed",
-                                env: { "PREBAKE_HTTP_URL" => "https://custom.example.com" })
+                                env: { "PREBAKE_HTTP_URL" => "https://custom.example.com",
+                                       "PREBAKE_LOG_LEVEL" => "warn" })
     assert_equal "  [prebake] WARN: should not be suppressed", result
   end
 
   def test_warn_not_suppressed_on_darwin_with_non_http_backend
     skip "darwin-only test" unless RUBY_PLATFORM.include?("darwin")
 
-    result = capture_log_output(:warn, "gemstash warning", env: { "PREBAKE_BACKEND" => "gemstash" })
+    result = capture_log_output(:warn, "gemstash warning",
+                                env: { "PREBAKE_BACKEND" => "gemstash", "PREBAKE_LOG_LEVEL" => "warn" })
     assert_equal "  [prebake] WARN: gemstash warning", result
   end
 
   def test_warn_fires_on_linux_regardless_of_backend_config
     skip "linux-only test" if RUBY_PLATFORM.include?("darwin")
 
-    result = capture_log_output(:warn, "linux warning")
+    result = capture_log_output(:warn, "linux warning", env: { "PREBAKE_LOG_LEVEL" => "warn" })
     assert_equal "  [prebake] WARN: linux warning", result
   end
 
@@ -58,6 +62,21 @@ class LoggerTest < Minitest::Test
 
     result = capture_log_output(:info, "info msg", env: { "PREBAKE_LOG_LEVEL" => "info" })
     assert_equal "  [prebake] info msg", result
+  end
+
+  def test_warn_silent_by_default_when_no_log_level_set
+    result = capture_log_output(:warn, "should be silent by default")
+    assert_nil result
+  end
+
+  def test_silent_level_suppresses_warn
+    result = capture_log_output(:warn, "suppressed", env: { "PREBAKE_LOG_LEVEL" => "silent" })
+    assert_nil result
+  end
+
+  def test_warn_level_opts_into_warnings
+    result = capture_log_output(:warn, "opted in", env: { "PREBAKE_LOG_LEVEL" => "warn" })
+    assert_equal "  [prebake] WARN: opted in", result
   end
 
   def test_output_delegates_to_bundler_ui_when_available

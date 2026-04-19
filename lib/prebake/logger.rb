@@ -2,10 +2,10 @@
 
 module Prebake
   module Logger
-    LEVELS = { debug: 0, info: 1, warn: 2 }.freeze
+    LEVELS = { debug: 0, info: 1, warn: 2, silent: 3 }.freeze
 
     def self.level
-      @level ||= LEVELS.fetch(ENV.fetch("PREBAKE_LOG_LEVEL", "warn").to_sym, 1)
+      @level ||= LEVELS.fetch(ENV.fetch("PREBAKE_LOG_LEVEL", "silent").to_sym, 3)
     end
 
     def self.debug(msg)

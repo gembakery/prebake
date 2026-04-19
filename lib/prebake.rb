@@ -19,6 +19,14 @@ module Prebake
     enabled? && ENV.fetch("PREBAKE_PUSH_ENABLED", "false") == "true"
   end
 
+  def self.skip_portability_check?
+    ENV.fetch("PREBAKE_SKIP_PORTABILITY_CHECK", "false") == "true"
+  end
+
+  def self.max_glibc
+    ENV.fetch("PREBAKE_MAX_GLIBC", nil)
+  end
+
   def self.backend
     return @backend if defined?(@backend_loaded)
 

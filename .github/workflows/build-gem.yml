@@ -30,10 +30,13 @@ on:
 jobs:
   build:
     name: "Build ${{ inputs.gem_name }}-${{ inputs.gem_version }} (${{ inputs.platform }})"
+    # Pin to Ubuntu 22.04 (glibc 2.35) so cached binaries are loadable on any
+    # consumer with glibc >= 2.35. ubuntu-latest tracks the newest LTS, which
+    # would silently exclude older-distro consumers from cache hits.
     runs-on: >-
       ${{
-        inputs.platform == 'aarch64-linux' && 'ubuntu-24.04-arm' ||
-        'ubuntu-latest'
+        inputs.platform == 'aarch64-linux' && 'ubuntu-22.04-arm' ||
+        'ubuntu-22.04'
       }}
     timeout-minutes: 10
 
