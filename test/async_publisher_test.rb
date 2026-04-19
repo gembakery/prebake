@@ -53,6 +53,54 @@ class AsyncPublisherTest < Minitest::Test
     Prebake::AsyncPublisher.wait_for_completion(timeout: 5)
   end
 
+  def test_skips_push_when_built_gem_exceeds_max_glibc
+    ENV["PREBAKE_MAX_GLIBC"] = "2.28"
+    spec = mock_spec("testgem", "1.0.0")
+    gem_path = temp_gem_path
+    backend = stub(exists?: false)
+    backend.expects(:push).never
+
+    builder = stub(build: gem_path, checksum: "sha")
+    Prebake::PlatformGemBuilder.stubs(:new).with(spec).returns(builder)
+    Prebake::ElfInspector.stubs(:required_glibc_for_gem).with(gem_path).returns("2.35")
+
+    Prebake::AsyncPublisher.enqueue(spec, backend)
+    Prebake::AsyncPublisher.wait_for_completion(timeout: 5)
+  ensure
+    ENV.delete("PREBAKE_MAX_GLIBC")
+  end
+
+  def test_pushes_when_built_gem_within_max_glibc
+    ENV["PREBAKE_MAX_GLIBC"] = "2.35"
+    spec = mock_spec("testgem", "1.0.0")
+    gem_path = temp_gem_path
+    backend = stub(exists?: false)
+    backend.expects(:push).with(gem_path, anything, "sha")
+
+    builder = stub(build: gem_path, checksum: "sha")
+    Prebake::PlatformGemBuilder.stubs(:new).with(spec).returns(builder)
+    Prebake::ElfInspector.stubs(:required_glibc_for_gem).with(gem_path).returns("2.28")
+
+    Prebake::AsyncPublisher.enqueue(spec, backend)
+    Prebake::AsyncPublisher.wait_for_completion(timeout: 5)
+  ensure
+    ENV.delete("PREBAKE_MAX_GLIBC")
+  end
+
+  def test_pushes_without_check_when_max_glibc_unset
+    spec = mock_spec("testgem", "1.0.0")
+    gem_path = temp_gem_path
+    backend = stub(exists?: false)
+    backend.expects(:push).with(gem_path, anything, "sha")
+
+    builder = stub(build: gem_path, checksum: "sha")
+    Prebake::PlatformGemBuilder.stubs(:new).with(spec).returns(builder)
+    Prebake::ElfInspector.expects(:required_glibc_for_gem).never
+
+    Prebake::AsyncPublisher.enqueue(spec, backend)
+    Prebake::AsyncPublisher.wait_for_completion(timeout: 5)
+  end
+
   def test_multiple_enqueues_all_processed
     pushed = []
     3.times do |i|

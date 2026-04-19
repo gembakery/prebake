@@ -4,6 +4,7 @@ require "fileutils"
 require_relative "platform_gem_builder"
 require_relative "cache_key"
 require_relative "platform"
+require_relative "elf_inspector"
 require_relative "logger"
 
 module Prebake
@@ -64,6 +65,15 @@ module Prebake
       builder = PlatformGemBuilder.new(spec)
       gem_path = builder.build
       checksum = builder.checksum
+
+      if (max = Prebake.max_glibc)
+        required = ElfInspector.required_glibc_for_gem(gem_path)
+        if required && Gem::Version.new(required) > Gem::Version.new(max)
+          Logger.warn "Skipping push of #{cache_key}: requires glibc #{required} (> PREBAKE_MAX_GLIBC=#{max})"
+          FileUtils.rm_f(gem_path)
+          return nil
+        end
+      end
 
       Logger.debug "Built #{cache_key}"
       [gem_path, cache_key, checksum, backend]
