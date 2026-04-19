@@ -69,7 +69,7 @@ All configuration is done through environment variables. No code changes require
 | `PREBAKE_S3_PREFIX` | `prebake` | Key prefix (folder) within the bucket. |
 | `PREBAKE_GEMSTASH_URL` | _(required for gemstash)_ | Gemstash server URL. |
 | `PREBAKE_GEMSTASH_KEY` | _(none)_ | Gemstash API key. |
-| `PREBAKE_LOG_LEVEL` | `warn` | Log verbosity: `debug`, `info`, `warn`. |
+| `PREBAKE_LOG_LEVEL` | `silent` | Log verbosity: `debug`, `info`, `warn`, `silent`. Silent by default since prebake is an enhancement — all failures fall back to source builds. Set to `warn` to diagnose cache misses. |
 | `PREBAKE_MAX_GLIBC` | _(none)_ | Publisher guard. When set (e.g. `2.28`), prebake refuses to push a built gem whose binaries require a newer glibc than this. Prevents self-hosted caches from being poisoned by a modern build host for older consumers. |
 | `PREBAKE_SKIP_PORTABILITY_CHECK` | `false` | Consumer guard. Set to `true` to skip the glibc compatibility check on cache hits (escape hatch for unusual environments). |
 
@@ -187,10 +187,11 @@ Any gem with native C extensions: puma, nokogiri, pg, grpc, bootsnap, sassc, nio
 
 ## Troubleshooting
 
-Enable debug logging to see what the plugin is doing:
+Prebake is silent by default — if a cache entry can't be used, it transparently falls back to compiling from source. To see what the plugin is doing (cache hits/misses, push failures, fallbacks), raise the log level:
 
 ```bash
-PREBAKE_LOG_LEVEL=debug bundle install
+PREBAKE_LOG_LEVEL=warn bundle install   # surface warnings
+PREBAKE_LOG_LEVEL=debug bundle install  # full diagnostics
 ```
 
 **Common issues:**
