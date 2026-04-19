@@ -70,6 +70,8 @@ All configuration is done through environment variables. No code changes require
 | `PREBAKE_GEMSTASH_URL` | _(required for gemstash)_ | Gemstash server URL. |
 | `PREBAKE_GEMSTASH_KEY` | _(none)_ | Gemstash API key. |
 | `PREBAKE_LOG_LEVEL` | `warn` | Log verbosity: `debug`, `info`, `warn`. |
+| `PREBAKE_MAX_GLIBC` | _(none)_ | Publisher guard. When set (e.g. `2.28`), prebake refuses to push a built gem whose binaries require a newer glibc than this. Prevents self-hosted caches from being poisoned by a modern build host for older consumers. |
+| `PREBAKE_SKIP_PORTABILITY_CHECK` | `false` | Consumer guard. Set to `true` to skip the glibc compatibility check on cache hits (escape hatch for unusual environments). |
 
 ## How it works
 
@@ -149,6 +151,25 @@ export PREBAKE_GEMSTASH_URL=http://gemstash.internal:9292
 export PREBAKE_GEMSTASH_KEY=my-api-key
 export PREBAKE_PUSH_ENABLED=true
 ```
+
+## Portability (glibc)
+
+On Linux, shared libraries built against a newer glibc won't load on hosts with an older glibc. Prebake's cache key includes the platform and Ruby ABI but not the glibc version, which matches how rubygems.org's precompiled gems work — but in self-hosted setups the publisher and consumers may run very different distros.
+
+Prebake addresses this with two guards:
+
+- **Consumer-side (automatic)**: on a cache hit, prebake inspects the cached gem's `.so` files via `objdump -T` and reads the highest `GLIBC_X.Y` symbol version required. If the host's glibc (from `ldd --version`) is older, the cache hit is skipped and Bundler compiles from source. The cached binary is **not** deleted from the backend — it's still valid for other hosts. Set `PREBAKE_SKIP_PORTABILITY_CHECK=true` to disable.
+- **Publisher-side (opt-in)**: set `PREBAKE_MAX_GLIBC=2.28` (or similar) on publish-enabled hosts. Prebake refuses to push a built gem whose binaries require a newer glibc than that floor. Nothing is enforced when the env var is unset.
+
+Recommended values for `PREBAKE_MAX_GLIBC`:
+
+| Baseline | glibc |
+|---|---|
+| Ubuntu 20.04 / RHEL 8 | `2.28` |
+| Ubuntu 22.04 / Debian 12 | `2.35` |
+| Ubuntu 24.04 | `2.39` |
+
+Darwin and musl (Alpine) consumers bypass the check — the platform cache key already segregates those hosts.
 
 ## Frequently asked questions
 
