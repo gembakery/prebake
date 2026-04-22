@@ -1,6 +1,11 @@
-# prebake
-
-**Stop compiling. Start installing. Prebake your native gems.**
+<div align="center">
+  <img width="256" height="256" src="https://github.com/user-attachments/assets/a5b363e6-9ecf-4723-957c-0ea993b0bd28" />
+	<h1>Prebake</h1>
+	<p>
+		<b>Stop compiling. Start installing. Prebake your native gems.</b>
+	</p>
+	<br>
+</div>
 
 Prebake is a Bundler plugin that speeds up `bundle install` by skipping native gem compilation. Instead of compiling C extensions from source every time, it fetches precompiled binaries from a shared cache. If the cache doesn't have it yet, Bundler compiles normally and the result is cached for everyone.
 
