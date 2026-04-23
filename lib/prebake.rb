@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "prebake/logger"
+require_relative "prebake/static_ruby"
 
 module Prebake
   class Error < StandardError; end
@@ -27,6 +28,10 @@ module Prebake
     ENV.fetch("PREBAKE_MAX_GLIBC", nil)
   end
 
+  def self.optional_native_extensions = StaticRuby.optional_native_extensions
+  def self.optional_native_extension?(gem_name) = StaticRuby.optional_native_extension?(gem_name)
+  def self.libruby_available? = StaticRuby.libruby_available?
+
   def self.backend
     return @backend if defined?(@backend_loaded)
 
@@ -49,6 +54,7 @@ module Prebake
   def self.reset!
     remove_instance_variable(:@backend_loaded) if defined?(@backend_loaded)
     remove_instance_variable(:@backend) if defined?(@backend)
+    StaticRuby.reset!
   end
 
   def self.setup!

@@ -101,6 +101,38 @@ class AsyncPublisherTest < Minitest::Test
     Prebake::AsyncPublisher.wait_for_completion(timeout: 5)
   end
 
+  def test_skips_push_when_built_gem_needs_libruby_on_static_ruby
+    spec = mock_spec("bootsnap", "1.23.0")
+    gem_path = temp_gem_path
+    backend = stub(exists?: false)
+    backend.expects(:push).never
+
+    builder = stub(build: gem_path, checksum: "sha")
+    Prebake::PlatformGemBuilder.stubs(:new).with(spec).returns(builder)
+    Prebake.stubs(:libruby_available?).returns(false)
+    Prebake::ElfInspector.stubs(:libruby_needed_for_gem?).with(gem_path).returns(true)
+
+    Prebake::AsyncPublisher.enqueue(spec, backend)
+    Prebake::AsyncPublisher.wait_for_completion(timeout: 5)
+
+    refute File.exist?(gem_path), "broken gem file should be cleaned up"
+  end
+
+  def test_pushes_when_libruby_needed_but_available
+    spec = mock_spec("bootsnap", "1.23.0")
+    gem_path = temp_gem_path
+    backend = stub(exists?: false)
+    backend.expects(:push).with(gem_path, anything, "sha")
+
+    builder = stub(build: gem_path, checksum: "sha")
+    Prebake::PlatformGemBuilder.stubs(:new).with(spec).returns(builder)
+    Prebake.stubs(:libruby_available?).returns(true)
+    Prebake::ElfInspector.expects(:libruby_needed_for_gem?).never
+
+    Prebake::AsyncPublisher.enqueue(spec, backend)
+    Prebake::AsyncPublisher.wait_for_completion(timeout: 5)
+  end
+
   def test_multiple_enqueues_all_processed
     pushed = []
     3.times do |i|

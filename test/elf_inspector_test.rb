@@ -83,4 +83,71 @@ class ElfInspectorTest < Minitest::Test
   ensure
     FileUtils.rm_rf(tmpdir) if tmpdir
   end
+
+  def test_needed_libraries_returns_empty_for_missing_file
+    assert_equal [], Prebake::ElfInspector.needed_libraries("/nonexistent/path.so")
+  end
+
+  def test_needed_libraries_returns_empty_when_objdump_unavailable
+    Open3.stubs(:capture2e).with("objdump", "-p", anything).raises(Errno::ENOENT)
+
+    Tempfile.create(["fake", ".so"]) do |f|
+      assert_equal [], Prebake::ElfInspector.needed_libraries(f.path)
+    end
+  end
+
+  def test_needed_libraries_parses_needed_entries_from_objdump
+    Tempfile.create(["fake", ".so"]) do |f|
+      out = <<~OBJDUMP
+        Dynamic Section:
+          NEEDED               libpthread.so.0
+          NEEDED               libruby.so.4.0
+          NEEDED               libc.so.6
+      OBJDUMP
+      Open3.stubs(:capture2e).with("objdump", "-p", f.path).returns([out, stub(success?: true)])
+
+      assert_equal %w[libpthread.so.0 libruby.so.4.0 libc.so.6],
+                   Prebake::ElfInspector.needed_libraries(f.path)
+    end
+  end
+
+  def test_libruby_needed_returns_true_when_libruby_in_needed
+    Prebake::ElfInspector.stubs(:needed_libraries).returns(["libpthread.so.0", "libruby.so.4.0"])
+    assert Prebake::ElfInspector.libruby_needed?("/fake.so")
+  end
+
+  def test_libruby_needed_returns_false_when_libruby_absent
+    Prebake::ElfInspector.stubs(:needed_libraries).returns(["libpthread.so.0", "libc.so.6"])
+    refute Prebake::ElfInspector.libruby_needed?("/fake.so")
+  end
+
+  def test_libruby_needed_for_gem_returns_true_when_binary_needs_libruby
+    gem_path = build_test_gem(files: { "ext.so" => "x" })
+    Prebake::ElfInspector.stubs(:libruby_needed?).with(regexp_matches(/ext\.so\z/)).returns(true)
+
+    assert Prebake::ElfInspector.libruby_needed_for_gem?(gem_path)
+  end
+
+  def test_libruby_needed_for_gem_returns_false_when_no_binary_needs_libruby
+    gem_path = build_test_gem(files: { "ext.so" => "x" })
+    Prebake::ElfInspector.stubs(:libruby_needed?).returns(false)
+
+    refute Prebake::ElfInspector.libruby_needed_for_gem?(gem_path)
+  end
+
+  def test_libruby_needed_for_gem_returns_false_when_no_binaries
+    gem_path = build_test_gem(files: { "lib/foo.rb" => "# ruby" })
+
+    refute Prebake::ElfInspector.libruby_needed_for_gem?(gem_path)
+  end
+
+  def test_libruby_needed_for_gem_returns_false_for_malformed_gem
+    tmpdir = Dir.mktmpdir
+    bad = File.join(tmpdir, "not-a.gem")
+    File.write(bad, "garbage")
+
+    refute Prebake::ElfInspector.libruby_needed_for_gem?(bad)
+  ensure
+    FileUtils.rm_rf(tmpdir) if tmpdir
+  end
 end

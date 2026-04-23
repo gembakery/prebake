@@ -77,6 +77,7 @@ All configuration is done through environment variables. No code changes require
 | `PREBAKE_LOG_LEVEL` | `silent` | Log verbosity: `debug`, `info`, `warn`, `silent`. Silent by default since prebake is an enhancement — all failures fall back to source builds. Set to `warn` to diagnose cache misses. |
 | `PREBAKE_MAX_GLIBC` | _(none)_ | Publisher guard. When set (e.g. `2.28`), prebake refuses to push a built gem whose binaries require a newer glibc than this. Prevents self-hosted caches from being poisoned by a modern build host for older consumers. |
 | `PREBAKE_SKIP_PORTABILITY_CHECK` | `false` | Consumer guard. Set to `true` to skip the glibc compatibility check on cache hits (escape hatch for unusual environments). |
+| `PREBAKE_OPTIONAL_NATIVE_EXTENSIONS` | _(none)_ | Comma-separated gem names to append to the built-in optional-extension list (which includes `bootsnap`). On a static Ruby build (libruby.so absent), prebake skips the native extension for these gems and installs them in pure-Ruby mode instead. |
 
 ## How it works
 
@@ -175,6 +176,27 @@ Recommended values for `PREBAKE_MAX_GLIBC`:
 | Ubuntu 24.04 | `2.39` |
 
 Darwin and musl (Alpine) consumers bypass the check — the platform cache key already segregates those hosts.
+
+## Portability (static Ruby)
+
+Some Ruby deployments — notably the [Paketo MRI buildpack](https://github.com/paketo-buildpacks/mri) — link Ruby as a static binary and omit `libruby.so`. Native extensions compiled against a dynamic Ruby carry a `NEEDED libruby` dynamic dependency and will crash at load time on these hosts.
+
+Prebake detects this automatically and applies two guards:
+
+- **Consumer-side (automatic)**: on a cache hit, prebake inspects the cached gem's `.so` files via `objdump -p` and checks for a `NEEDED libruby` entry. If found and `libruby.so` is absent on the host, the cache hit is skipped and Bundler compiles from source. The cached binary is **not** deleted — it remains valid for dynamic-Ruby hosts.
+- **Publisher-side (automatic)**: when `PREBAKE_PUSH_ENABLED=true`, prebake checks each freshly-built gem before uploading. If the binary links against `libruby.so` and the current host is a static Ruby build, the push is skipped. The binary would be broken on static hosts and is not representative of what dynamic hosts need.
+
+### Optional native extensions
+
+Some gems (notably **bootsnap**) have entirely optional native extensions — they fall back to pure-Ruby mode when the extension isn't present. On a static Ruby host, compiling the extension would produce a broken `.so` that crashes on load.
+
+Prebake's built-in list covers `bootsnap`. You can extend it at runtime:
+
+```bash
+export PREBAKE_OPTIONAL_NATIVE_EXTENSIONS=bootsnap,other_optional_gem
+```
+
+For gems on this list, prebake skips the native extension build entirely on static Ruby hosts and marks the gem as installed in pure-Ruby mode. No compilation, no broken `.so`.
 
 ## Frequently asked questions
 

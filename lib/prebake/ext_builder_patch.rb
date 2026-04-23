@@ -6,8 +6,7 @@ require "digest"
 require_relative "cache_key"
 require_relative "platform"
 require_relative "extractor"
-require_relative "elf_inspector"
-require_relative "glibc"
+require_relative "portability_guard"
 require_relative "logger"
 
 module Prebake
@@ -16,6 +15,12 @@ module Prebake
       return super unless @spec.extensions.any?
       return super unless Prebake.enabled?
       return super unless Prebake.backend # nil if config failed
+
+      if Prebake.optional_native_extension?(@spec.name) && !Prebake.libruby_available?
+        Logger.warn "#{@spec.name}: native extension skipped (optional gem, libruby.so absent on static Ruby build)"
+        install_without_native_extension
+        return
+      end
 
       platform = Platform.generalized
       cache_key = CacheKey.for(@spec.name, @spec.version.to_s, platform)
@@ -40,7 +45,7 @@ module Prebake
       end
 
       if verify_checksum(cache_key, expected_checksum, cached_gem)
-        unless portable_for_host?(cached_gem)
+        unless PortabilityGuard.portable_for_host?(cached_gem, spec_name: @spec.name)
           # Binary is valid for other hosts; don't delete from backend.
           return super
         end
@@ -85,16 +90,8 @@ module Prebake
       end
     end
 
-    def portable_for_host?(gem_path)
-      # Cache key already segregates platforms; glibc check only applies on linux.
-      return true unless Glibc.linux?
-      return true if Prebake.skip_portability_check?
-
-      required = ElfInspector.required_glibc_for_gem(gem_path)
-      return true if Glibc.compatible?(required)
-
-      Logger.warn "Cached #{@spec.name} requires glibc #{required}, host has #{Glibc.detected_version || 'unknown'}; falling back to source build"
-      false
+    def install_without_native_extension
+      mark_build_complete
     end
 
     def install_from_cache(gem_path)
@@ -105,9 +102,13 @@ module Prebake
         return false
       end
 
+      mark_build_complete
+      true
+    end
+
+    def mark_build_complete
       FileUtils.mkdir_p(File.dirname(@spec.gem_build_complete_path))
       FileUtils.touch(@spec.gem_build_complete_path)
-      true
     end
   end
 end
