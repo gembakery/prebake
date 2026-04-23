@@ -211,6 +211,22 @@ class ExtBuilderPatchTest < Minitest::Test
     ENV.delete("PREBAKE_OPTIONAL_NATIVE_EXTENSIONS")
   end
 
+  def test_bootsnap_not_skipped_on_static_ruby_without_explicit_opt_in
+    # bootsnap 1.18+ requires its native extension unconditionally; skipping
+    # the build produces a broken install. Ensure it goes through the normal
+    # cache/source-build path even on static Ruby.
+    spec = make_spec(name: "bootsnap")
+    Prebake.stubs(:libruby_available?).returns(false)
+    key = Prebake::CacheKey.for("bootsnap", "1.0.0", Prebake::Platform.generalized)
+    backend = mock("backend")
+    backend.expects(:fetch_checksum).with(key).returns(nil)
+    backend.expects(:checksums_supported?).returns(false)
+    backend.expects(:fetch).with(key).returns(nil)
+    Prebake.backend = backend
+
+    assert_raises(Gem::Ext::BuildError) { build(spec) }
+  end
+
   # cached binary requires libruby.so on static Ruby
 
   def test_falls_back_without_deleting_when_cached_binary_needs_libruby_on_static_ruby

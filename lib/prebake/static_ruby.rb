@@ -8,7 +8,9 @@ module Prebake
     # Gems whose native extensions are entirely optional — the gem runs correctly in pure Ruby
     # mode when the extension can't be loaded. Prebake skips the extension for these gems
     # instead of installing a broken .so. Extend via PREBAKE_OPTIONAL_NATIVE_EXTENSIONS=gem1,gem2.
-    OPTIONAL_NATIVE_EXTENSIONS_DEFAULT = %w[bootsnap].freeze
+    # NOTE: bootsnap is intentionally excluded — 1.18+ requires its native extension
+    # unconditionally; skipping the build produces a broken install.
+    OPTIONAL_NATIVE_EXTENSIONS_DEFAULT = [].freeze
 
     class << self
       def optional_native_extensions
