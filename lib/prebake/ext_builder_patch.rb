@@ -111,8 +111,7 @@ module Prebake
     end
 
     def install_without_native_extension
-      FileUtils.mkdir_p(File.dirname(@spec.gem_build_complete_path))
-      FileUtils.touch(@spec.gem_build_complete_path)
+      mark_build_complete
     end
 
     def install_from_cache(gem_path)
@@ -123,9 +122,13 @@ module Prebake
         return false
       end
 
+      mark_build_complete
+      true
+    end
+
+    def mark_build_complete
       FileUtils.mkdir_p(File.dirname(@spec.gem_build_complete_path))
       FileUtils.touch(@spec.gem_build_complete_path)
-      true
     end
   end
 end
