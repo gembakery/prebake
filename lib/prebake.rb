@@ -35,9 +35,11 @@ module Prebake
   end
 
   def self.optional_native_extensions
-    extra = ENV.fetch("PREBAKE_OPTIONAL_NATIVE_EXTENSIONS", "")
-               .split(",").map(&:strip).reject(&:empty?)
-    (OPTIONAL_NATIVE_EXTENSIONS_DEFAULT + extra).uniq
+    @optional_native_extensions ||= begin
+      extra = ENV.fetch("PREBAKE_OPTIONAL_NATIVE_EXTENSIONS", "")
+                 .split(",").map(&:strip).reject(&:empty?)
+      (OPTIONAL_NATIVE_EXTENSIONS_DEFAULT + extra).uniq
+    end
   end
 
   def self.optional_native_extension?(gem_name)
@@ -48,10 +50,11 @@ module Prebake
   # Static Ruby builds (e.g. Paketo MRI buildpack) omit the shared library, so native
   # extensions compiled with a dynamic link to libruby will fail to load at runtime.
   def self.libruby_available?
-    libruby_so = RbConfig::CONFIG["LIBRUBY_SO"]
-    return false if libruby_so.nil? || libruby_so.empty?
+    return @libruby_available if defined?(@libruby_available)
 
-    File.exist?(File.join(RbConfig::CONFIG["libdir"], libruby_so))
+    libruby_so = RbConfig::CONFIG["LIBRUBY_SO"]
+    @libruby_available = !libruby_so.nil? && !libruby_so.empty? &&
+                         File.exist?(File.join(RbConfig::CONFIG["libdir"], libruby_so))
   end
 
   def self.backend
@@ -76,6 +79,8 @@ module Prebake
   def self.reset!
     remove_instance_variable(:@backend_loaded) if defined?(@backend_loaded)
     remove_instance_variable(:@backend) if defined?(@backend)
+    remove_instance_variable(:@optional_native_extensions) if defined?(@optional_native_extensions)
+    remove_instance_variable(:@libruby_available) if defined?(@libruby_available)
   end
 
   def self.setup!
