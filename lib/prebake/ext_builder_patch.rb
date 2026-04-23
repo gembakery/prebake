@@ -6,8 +6,7 @@ require "digest"
 require_relative "cache_key"
 require_relative "platform"
 require_relative "extractor"
-require_relative "elf_inspector"
-require_relative "glibc"
+require_relative "portability_guard"
 require_relative "logger"
 
 module Prebake
@@ -46,7 +45,7 @@ module Prebake
       end
 
       if verify_checksum(cache_key, expected_checksum, cached_gem)
-        unless portable_for_host?(cached_gem)
+        unless PortabilityGuard.portable_for_host?(cached_gem, spec_name: @spec.name)
           # Binary is valid for other hosts; don't delete from backend.
           return super
         end
@@ -89,25 +88,6 @@ module Prebake
         Logger.warn "Checksum mismatch for #{cache_key}: expected #{expected}, got #{actual}"
         false
       end
-    end
-
-    def portable_for_host?(gem_path)
-      # Cache key already segregates platforms; portability checks only apply on linux.
-      return true unless Glibc.linux?
-      return true if Prebake.skip_portability_check?
-
-      required = ElfInspector.required_glibc_for_gem(gem_path)
-      unless Glibc.compatible?(required)
-        Logger.warn "Cached #{@spec.name} requires glibc #{required}, host has #{Glibc.detected_version || 'unknown'}; falling back to source build"
-        return false
-      end
-
-      if !Prebake.libruby_available? && ElfInspector.libruby_needed_for_gem?(gem_path)
-        Logger.warn "Cached #{@spec.name} requires libruby.so (dynamic Ruby build) but this host has a static Ruby; falling back to source build"
-        return false
-      end
-
-      true
     end
 
     def install_without_native_extension
