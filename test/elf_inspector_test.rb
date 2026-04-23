@@ -89,10 +89,9 @@ class ElfInspectorTest < Minitest::Test
   end
 
   def test_needed_libraries_returns_empty_when_objdump_unavailable
-    Prebake::ElfInspector.stubs(:run_objdump_p).returns(nil)
+    Open3.stubs(:capture2e).with("objdump", "-p", anything).raises(Errno::ENOENT)
 
     Tempfile.create(["fake", ".so"]) do |f|
-      Prebake::ElfInspector.stubs(:needed_libraries).with(f.path).returns([])
       assert_equal [], Prebake::ElfInspector.needed_libraries(f.path)
     end
   end
