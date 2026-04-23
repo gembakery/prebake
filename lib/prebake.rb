@@ -9,6 +9,13 @@ module Prebake
   RUBY_ABI_VERSION = "#{RbConfig::CONFIG['MAJOR']}.#{RbConfig::CONFIG['MINOR']}".freeze
   DEFAULT_HTTP_URL = "https://gems.prebake.in"
 
+  # Gems whose native extensions are entirely optional — the gem runs correctly in pure Ruby
+  # mode when the extension can't be loaded. On static Ruby builds (e.g. Paketo MRI buildpack)
+  # libruby.so is absent, so compiled extensions that dynamically link against it would crash
+  # at load time. Prebake skips the extension for these gems instead of installing a broken .so.
+  # Extend at runtime via PREBAKE_OPTIONAL_NATIVE_EXTENSIONS=gem1,gem2.
+  OPTIONAL_NATIVE_EXTENSIONS_DEFAULT = %w[bootsnap].freeze
+
   @backend_mutex = Mutex.new
 
   def self.enabled?
@@ -25,6 +32,26 @@ module Prebake
 
   def self.max_glibc
     ENV.fetch("PREBAKE_MAX_GLIBC", nil)
+  end
+
+  def self.optional_native_extensions
+    extra = ENV.fetch("PREBAKE_OPTIONAL_NATIVE_EXTENSIONS", "")
+               .split(",").map(&:strip).reject(&:empty?)
+    (OPTIONAL_NATIVE_EXTENSIONS_DEFAULT + extra).uniq
+  end
+
+  def self.optional_native_extension?(gem_name)
+    optional_native_extensions.include?(gem_name)
+  end
+
+  # Returns true when Ruby's shared library (libruby.so / libruby.dylib) is present on disk.
+  # Static Ruby builds (e.g. Paketo MRI buildpack) omit the shared library, so native
+  # extensions compiled with a dynamic link to libruby will fail to load at runtime.
+  def self.libruby_available?
+    libruby_so = RbConfig::CONFIG["LIBRUBY_SO"]
+    return false if libruby_so.nil? || libruby_so.empty?
+
+    File.exist?(File.join(RbConfig::CONFIG["libdir"], libruby_so))
   end
 
   def self.backend
