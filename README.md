@@ -77,7 +77,7 @@ All configuration is done through environment variables. No code changes require
 | `PREBAKE_LOG_LEVEL` | `silent` | Log verbosity: `debug`, `info`, `warn`, `silent`. Silent by default since prebake is an enhancement — all failures fall back to source builds. Set to `warn` to diagnose cache misses. |
 | `PREBAKE_MAX_GLIBC` | _(none)_ | Publisher guard. When set (e.g. `2.28`), prebake refuses to push a built gem whose binaries require a newer glibc than this. Prevents self-hosted caches from being poisoned by a modern build host for older consumers. |
 | `PREBAKE_SKIP_PORTABILITY_CHECK` | `false` | Consumer guard. Set to `true` to skip the glibc compatibility check on cache hits (escape hatch for unusual environments). |
-| `PREBAKE_OPTIONAL_NATIVE_EXTENSIONS` | _(none)_ | Comma-separated gem names to append to the built-in optional-extension list (which includes `bootsnap`). On a static Ruby build (libruby.so absent), prebake skips the native extension for these gems and installs them in pure-Ruby mode instead. |
+| `PREBAKE_OPTIONAL_NATIVE_EXTENSIONS` | _(none)_ | Comma-separated gem names whose native extensions are entirely optional (gem works in pure-Ruby mode without them). On a static Ruby build (libruby.so absent), prebake skips the native extension for these gems instead of installing a broken `.so`. |
 
 ## How it works
 
@@ -188,15 +188,15 @@ Prebake detects this automatically and applies two guards:
 
 ### Optional native extensions
 
-Some gems (notably **bootsnap**) have entirely optional native extensions — they fall back to pure-Ruby mode when the extension isn't present. On a static Ruby host, compiling the extension would produce a broken `.so` that crashes on load.
-
-Prebake's built-in list covers `bootsnap`. You can extend it at runtime:
+Some gems have entirely optional native extensions — they fall back to pure-Ruby mode when the extension isn't present. On a static Ruby host, you can tell prebake to skip the native extension build rather than compile a `.so` that may not load correctly:
 
 ```bash
-export PREBAKE_OPTIONAL_NATIVE_EXTENSIONS=bootsnap,other_optional_gem
+export PREBAKE_OPTIONAL_NATIVE_EXTENSIONS=mygem,othergem
 ```
 
 For gems on this list, prebake skips the native extension build entirely on static Ruby hosts and marks the gem as installed in pure-Ruby mode. No compilation, no broken `.so`.
+
+> **Note:** Only add gems that genuinely support pure-Ruby fallback. Gems like bootsnap (1.18+) require their native extension unconditionally — adding them here produces a broken install.
 
 ## Frequently asked questions
 
