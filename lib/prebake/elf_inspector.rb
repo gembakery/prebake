@@ -9,17 +9,9 @@ require_relative "logger"
 module Prebake
   module ElfInspector
     def self.required_glibc_for_gem(gem_path)
-      Dir.mktmpdir("prebake-portability") do |tmpdir|
-        Gem::Package.new(gem_path).extract_files(tmpdir)
-        versions = Dir.glob(File.join(tmpdir, "**/*.{so,bundle,dll}")).filter_map do |binary|
-          next if File.symlink?(binary) || File.size(binary).zero?
-
-          required_glibc(binary)
-        end
-        return nil if versions.empty?
-
-        versions.max_by { |v| Gem::Version.new(v) }
-      end
+      versions = []
+      each_gem_binary(gem_path) { |binary| v = required_glibc(binary); versions << v if v }
+      versions.empty? ? nil : versions.max_by { |v| Gem::Version.new(v) }
     rescue StandardError => e
       # Malformed gem, missing objdump, or I/O error — treat as unknown, let
       # downstream extraction catch real corruption.
@@ -44,14 +36,8 @@ module Prebake
     end
 
     def self.libruby_needed_for_gem?(gem_path)
-      Dir.mktmpdir("prebake-libruby") do |tmpdir|
-        Gem::Package.new(gem_path).extract_files(tmpdir)
-        Dir.glob(File.join(tmpdir, "**/*.{so,bundle,dll}")).any? do |binary|
-          next false if File.symlink?(binary) || File.size(binary).zero?
-
-          libruby_needed?(binary)
-        end
-      end
+      each_gem_binary(gem_path) { |binary| return true if libruby_needed?(binary) }
+      false
     rescue StandardError => e
       Logger.debug "libruby inspection failed for #{File.basename(gem_path)}: #{e.message}"
       false
@@ -62,8 +48,6 @@ module Prebake
     end
 
     def self.needed_libraries(path)
-      return [] unless File.exist?(path)
-
       out, status = Open3.capture2e("objdump", "-p", path)
       return [] unless status.success?
 
@@ -79,6 +63,17 @@ module Prebake
       out
     rescue Errno::ENOENT
       nil
+    end
+
+    private_class_method def self.each_gem_binary(gem_path)
+      Dir.mktmpdir("prebake-gem") do |tmpdir|
+        Gem::Package.new(gem_path).extract_files(tmpdir)
+        Dir.glob(File.join(tmpdir, "**/*.{so,bundle,dll}")).each do |binary|
+          next if File.symlink?(binary) || File.size(binary).zero?
+
+          yield binary
+        end
+      end
     end
   end
 end
