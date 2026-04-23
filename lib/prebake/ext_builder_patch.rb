@@ -17,6 +17,12 @@ module Prebake
       return super unless Prebake.enabled?
       return super unless Prebake.backend # nil if config failed
 
+      if Prebake.optional_native_extension?(@spec.name) && !Prebake.libruby_available?
+        Logger.warn "#{@spec.name}: native extension skipped (optional gem, libruby.so absent on static Ruby build)"
+        install_without_native_extension
+        return
+      end
+
       platform = Platform.generalized
       cache_key = CacheKey.for(@spec.name, @spec.version.to_s, platform)
 
@@ -86,15 +92,27 @@ module Prebake
     end
 
     def portable_for_host?(gem_path)
-      # Cache key already segregates platforms; glibc check only applies on linux.
+      # Cache key already segregates platforms; portability checks only apply on linux.
       return true unless Glibc.linux?
       return true if Prebake.skip_portability_check?
 
       required = ElfInspector.required_glibc_for_gem(gem_path)
-      return true if Glibc.compatible?(required)
+      unless Glibc.compatible?(required)
+        Logger.warn "Cached #{@spec.name} requires glibc #{required}, host has #{Glibc.detected_version || 'unknown'}; falling back to source build"
+        return false
+      end
 
-      Logger.warn "Cached #{@spec.name} requires glibc #{required}, host has #{Glibc.detected_version || 'unknown'}; falling back to source build"
-      false
+      if !Prebake.libruby_available? && ElfInspector.libruby_needed_for_gem?(gem_path)
+        Logger.warn "Cached #{@spec.name} requires libruby.so (dynamic Ruby build) but this host has a static Ruby; falling back to source build"
+        return false
+      end
+
+      true
+    end
+
+    def install_without_native_extension
+      FileUtils.mkdir_p(File.dirname(@spec.gem_build_complete_path))
+      FileUtils.touch(@spec.gem_build_complete_path)
     end
 
     def install_from_cache(gem_path)

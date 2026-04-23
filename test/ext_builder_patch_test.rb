@@ -172,4 +172,71 @@ class ExtBuilderPatchTest < Minitest::Test
     build(spec)
     assert File.exist?(@build_complete)
   end
+
+  # optional native extension + static Ruby
+
+  def test_skips_native_extension_for_optional_gem_on_static_ruby
+    spec = make_spec(name: "bootsnap")
+    Prebake.stubs(:optional_native_extension?).with("bootsnap").returns(true)
+    Prebake.stubs(:libruby_available?).returns(false)
+    Prebake.backend = mock("backend")
+    Prebake.backend.expects(:fetch).never
+
+    build(spec)
+    assert File.exist?(@build_complete), "gem_build_complete should be written without native extension"
+  end
+
+  def test_does_not_skip_optional_gem_when_libruby_available
+    spec, _backend, gem_path = stub_verified_cache_hit
+    # Use the default spec name ("testgem") so the backend mock's cache key still matches.
+    Prebake.stubs(:optional_native_extension?).with("testgem").returns(true)
+    Prebake.stubs(:libruby_available?).returns(true)
+    Prebake::Glibc.stubs(:linux?).returns(false)
+    Prebake::Extractor.expects(:install).with(gem_path, spec).returns(1)
+
+    build(spec)
+    assert File.exist?(@build_complete)
+  end
+
+  def test_optional_gem_skip_respects_env_var
+    ENV["PREBAKE_OPTIONAL_NATIVE_EXTENSIONS"] = "myoptionalgem"
+    spec = make_spec(name: "myoptionalgem")
+    Prebake.stubs(:libruby_available?).returns(false)
+    Prebake.backend = mock("backend")
+    Prebake.backend.expects(:fetch).never
+
+    build(spec)
+    assert File.exist?(@build_complete)
+  ensure
+    ENV.delete("PREBAKE_OPTIONAL_NATIVE_EXTENSIONS")
+  end
+
+  # cached binary requires libruby.so on static Ruby
+
+  def test_falls_back_without_deleting_when_cached_binary_needs_libruby_on_static_ruby
+    Prebake::Glibc.stubs(:linux?).returns(true)
+    spec, backend, gem_path = stub_verified_cache_hit
+    Prebake::ElfInspector.stubs(:required_glibc_for_gem).with(gem_path).returns(nil)
+    Prebake::Glibc.stubs(:compatible?).with(nil).returns(true)
+    Prebake.stubs(:libruby_available?).returns(false)
+    Prebake::ElfInspector.stubs(:libruby_needed_for_gem?).with(gem_path).returns(true)
+    backend.expects(:delete).never
+    Prebake::Extractor.expects(:install).never
+
+    assert_raises(Gem::Ext::BuildError) { build(spec) }
+    refute File.exist?(@build_complete)
+  end
+
+  def test_proceeds_normally_when_cached_binary_needs_libruby_but_libruby_available
+    Prebake::Glibc.stubs(:linux?).returns(true)
+    spec, _backend, gem_path = stub_verified_cache_hit
+    Prebake::ElfInspector.stubs(:required_glibc_for_gem).with(gem_path).returns(nil)
+    Prebake::Glibc.stubs(:compatible?).with(nil).returns(true)
+    Prebake.stubs(:libruby_available?).returns(true)
+    Prebake::ElfInspector.expects(:libruby_needed_for_gem?).never
+    Prebake::Extractor.expects(:install).with(gem_path, spec).returns(1)
+
+    build(spec)
+    assert File.exist?(@build_complete)
+  end
 end
