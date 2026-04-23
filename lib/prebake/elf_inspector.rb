@@ -43,6 +43,35 @@ module Prebake
       versions.max_by { |v| Gem::Version.new(v) }
     end
 
+    def self.libruby_needed_for_gem?(gem_path)
+      Dir.mktmpdir("prebake-libruby") do |tmpdir|
+        Gem::Package.new(gem_path).extract_files(tmpdir)
+        Dir.glob(File.join(tmpdir, "**/*.{so,bundle,dll}")).any? do |binary|
+          next false if File.symlink?(binary) || File.size(binary).zero?
+
+          libruby_needed?(binary)
+        end
+      end
+    rescue StandardError => e
+      Logger.debug "libruby inspection failed for #{File.basename(gem_path)}: #{e.message}"
+      false
+    end
+
+    def self.libruby_needed?(path)
+      needed_libraries(path).any? { |lib| lib.start_with?("libruby") }
+    end
+
+    def self.needed_libraries(path)
+      return [] unless File.exist?(path)
+
+      out, status = Open3.capture2e("objdump", "-p", path)
+      return [] unless status.success?
+
+      out.scan(/NEEDED\s+(\S+)/).flatten
+    rescue Errno::ENOENT
+      []
+    end
+
     def self.run_objdump(path)
       out, status = Open3.capture2e("objdump", "-T", path)
       return nil unless status.success?
