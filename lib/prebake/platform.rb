@@ -5,8 +5,6 @@ module Prebake
     NORMALIZATIONS = [
       [/\Aarm64-darwin(-\d+)?\z/, "arm64-darwin"],
       [/\Ax86_64-darwin(-\d+)?\z/, "x86_64-darwin"],
-      [/\Ax86_64-linux-musl\z/, "x86_64-linux-musl"],
-      [/\Aaarch64-linux-musl\z/, "aarch64-linux-musl"],
       [/\Ax86_64-linux(-gnu)?\z/, "x86_64-linux"],
       [/\Aaarch64-linux(-gnu)?\z/, "aarch64-linux"]
     ].freeze
