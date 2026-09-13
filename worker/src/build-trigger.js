@@ -1,5 +1,3 @@
-import { validateGemVersion } from "./validate-gem-version.js";
-
 export const CACHE_KEY_REGEX =
   /^[a-zA-Z0-9_.-]+-[0-9.]+-[a-z0-9_-]+-ruby[0-9.]+\.gem$/;
 
@@ -16,6 +14,35 @@ export function parseCacheKey(cacheKey) {
     platform: match[3],
     rubyAbi: match[4],
   };
+}
+
+async function validateGemVersion(gemResponse, parsed) {
+  if (!gemResponse.ok) {
+    console.error(`Gem ${parsed.name} not found on rubygems.org`);
+    return false;
+  }
+
+  const versions = await gemResponse.json();
+
+  if (!versions.some((v) => v.number === parsed.version)) {
+    console.error(
+      `Version ${parsed.version} of ${parsed.name} not found on rubygems.org`,
+    );
+    return false;
+  }
+
+  if (
+    versions.some(
+      (v) => v.number === parsed.version && v.platform === parsed.platform,
+    )
+  ) {
+    console.log(
+      `Skipping build for ${parsed.name}: precompiled gem already available on rubygems.org`,
+    );
+    return false;
+  }
+
+  return true;
 }
 
 export async function triggerBuild(cacheKey, env, clientIp) {
