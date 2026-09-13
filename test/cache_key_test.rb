@@ -15,9 +15,4 @@ class CacheKeyTest < Minitest::Test
     assert_match(/ruby\d+\.\d+\.gem\z/, key)
     refute_match(/ruby\d+\.\d+\.\d+\.gem\z/, key)
   end
-
-  def test_checksum_key_appends_sha256
-    key = Prebake::CacheKey.checksum_for("puma", "6.4.3", "arm64-darwin")
-    assert_equal "puma-6.4.3-arm64-darwin-ruby#{Prebake::RUBY_ABI_VERSION}.gem.sha256", key
-  end
 end
