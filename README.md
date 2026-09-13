@@ -105,10 +105,10 @@ When `PREBAKE_PUSH_ENABLED=true` (for self-hosted setups):
 |---|---|---|
 | `x86_64-linux` | x86-64 | Linux (glibc) |
 | `aarch64-linux` | ARM64 | Linux (glibc) |
-| `x86_64-linux-musl` | x86-64 | Linux (musl/Alpine) |
-| `aarch64-linux-musl` | ARM64 | Linux (musl/Alpine) |
 
-Other platforms are supported for self-hosted setups with `PREBAKE_PUSH_ENABLED=true`. The first `bundle install` compiles locally and caches the result for others.
+The hosted cache at `gems.prebake.in` builds for these two platforms only. A request for any other platform — musl/Alpine, macOS, Windows — is treated as a cache miss, and Bundler compiles from source exactly as it would without the plugin.
+
+Every other platform is supported through a self-hosted backend with `PREBAKE_PUSH_ENABLED=true`. The first `bundle install` compiles locally and caches the result for everyone else on the same platform.
 
 ## Backend setup
 
@@ -233,7 +233,7 @@ PREBAKE_LOG_LEVEL=debug bundle install  # full diagnostics
 
 - **Ruby**: 3.2, 3.3, 3.4, 4.0+
 - **Bundler**: 2.4+ (Ruby 4.0 users should use Bundler 4.x — see [Troubleshooting](#troubleshooting))
-- **OS**: Linux (x86_64, aarch64, glibc and musl) via cloud service; other platforms via self-hosted
+- **OS**: Linux x86_64 and aarch64 (glibc) via the cloud service; every other platform, including musl/Alpine and macOS, via self-hosted
 
 ## License
 
