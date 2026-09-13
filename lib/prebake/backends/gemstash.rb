@@ -44,17 +44,10 @@ module Prebake
         nil
       end
 
-      def fetch_checksum(_cache_key)
-        # Gemstash doesn't store arbitrary files alongside gems.
-        # Checksum verification is skipped for Gemstash backend.
-        nil
-      end
-
+      # Gemstash doesn't store arbitrary files alongside gems, so checksum
+      # verification is skipped. fetch_checksum and delete inherit Base's
+      # nil/false defaults.
       def checksums_supported?
-        false
-      end
-
-      def delete(_cache_key)
         false
       end
 

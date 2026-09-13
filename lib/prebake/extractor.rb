@@ -6,8 +6,6 @@ require_relative "logger"
 
 module Prebake
   module Extractor
-    BINARY_EXTENSIONS = %w[.so .bundle .dll].freeze
-
     def self.install(gem_path, spec)
       Logger.debug "Extracting precompiled binaries from #{File.basename(gem_path)}"
 

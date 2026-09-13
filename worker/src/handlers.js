@@ -1,8 +1,24 @@
 import { triggerBuild } from "./build-trigger.js";
-import { requireAuth, timingSafeEqual } from "./utils.js";
 
 const MAX_UPLOAD_SIZE = 50 * 1024 * 1024; // 50MB
 const MAX_CHECKSUM_SIZE = 128; // generous upper bound; SHA-256 hex is 64 chars
+
+const encoder = new TextEncoder();
+
+async function timingSafeEqual(expected, actual) {
+  const expectedBytes = encoder.encode(expected);
+  const actualBytes = encoder.encode(actual);
+  if (expectedBytes.byteLength !== actualBytes.byteLength) return false;
+  return crypto.subtle.timingSafeEqual(expectedBytes, actualBytes);
+}
+
+async function requireAuth(request, env) {
+  const authHeader = request.headers.get("Authorization") || "";
+  if (!(await timingSafeEqual(`Bearer ${env.API_KEY}`, authHeader))) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+  return null;
+}
 
 export async function handleGet(cacheKey, env, ctx, clientIp) {
   const object = await env.R2_BUCKET.get(cacheKey);

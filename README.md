@@ -74,6 +74,7 @@ All configuration is done through environment variables. No code changes require
 | `PREBAKE_S3_PREFIX` | `prebake` | Key prefix (folder) within the bucket. |
 | `PREBAKE_GEMSTASH_URL` | _(required for gemstash)_ | Gemstash server URL. |
 | `PREBAKE_GEMSTASH_KEY` | _(none)_ | Gemstash API key. |
+| `PREBAKE_ALLOW_INSECURE` | `false` | Set to `true` to suppress the warning shown when the `http` or `gemstash` backend URL uses plain `http://` instead of `https://`. The warning is only visible when `PREBAKE_LOG_LEVEL` is `warn`, `info`, or `debug`; prebake never refuses an insecure URL either way. |
 | `PREBAKE_LOG_LEVEL` | `silent` | Log verbosity: `debug`, `info`, `warn`, `silent`. Silent by default since prebake is an enhancement — all failures fall back to source builds. Set to `warn` to diagnose cache misses. |
 | `PREBAKE_MAX_GLIBC` | _(none)_ | Publisher guard. When set (e.g. `2.28`), prebake refuses to push a built gem whose binaries require a newer glibc than this. Prevents self-hosted caches from being poisoned by a modern build host for older consumers. |
 | `PREBAKE_SKIP_PORTABILITY_CHECK` | `false` | Consumer guard. Set to `true` to skip the glibc compatibility check on cache hits (escape hatch for unusual environments). |
@@ -105,10 +106,10 @@ When `PREBAKE_PUSH_ENABLED=true` (for self-hosted setups):
 |---|---|---|
 | `x86_64-linux` | x86-64 | Linux (glibc) |
 | `aarch64-linux` | ARM64 | Linux (glibc) |
-| `x86_64-linux-musl` | x86-64 | Linux (musl/Alpine) |
-| `aarch64-linux-musl` | ARM64 | Linux (musl/Alpine) |
 
-Other platforms are supported for self-hosted setups with `PREBAKE_PUSH_ENABLED=true`. The first `bundle install` compiles locally and caches the result for others.
+The hosted cache at `gems.prebake.in` builds for these two platforms only. A request for any other platform — musl/Alpine, macOS, Windows — is treated as a cache miss, and Bundler compiles from source exactly as it would without the plugin.
+
+Every other platform is supported through a self-hosted backend with `PREBAKE_PUSH_ENABLED=true`. The first `bundle install` compiles locally and caches the result for everyone else on the same platform.
 
 ## Backend setup
 
@@ -175,7 +176,7 @@ Recommended values for `PREBAKE_MAX_GLIBC`:
 | Ubuntu 22.04 / Debian 12 | `2.35` |
 | Ubuntu 24.04 | `2.39` |
 
-Darwin and musl (Alpine) consumers bypass the check — the platform cache key already segregates those hosts.
+Darwin hosts skip the check outright, since it only applies to Linux. musl (Alpine) hosts do run it, but musl binaries carry no `GLIBC_` symbols, so there is no required version to compare against and the check passes. In both cases the platform cache key already segregates those hosts, so a glibc-linked binary never reaches them in the first place.
 
 ## Portability (static Ruby)
 
@@ -204,7 +205,7 @@ For gems on this list, prebake skips the native extension build entirely on stat
 Yes. Prebake is designed for Ruby 3.2+ and fully supports Ruby 4.0. Cache keys include the Ruby ABI version so gems compiled for Ruby 4.0 are never mixed with Ruby 3.3.
 
 ### Is this safe? Can someone inject malicious binaries?
-The hosted service only builds from rubygems.org; users cannot push binaries. For self-hosted setups, SHA-256 checksums are verified on download.
+The hosted service only builds from rubygems.org; users cannot push binaries. Self-hosted setups on the `http` and `s3` backends store a SHA-256 sidecar alongside each gem and verify it on download, falling back to a source build on mismatch. Gemstash cannot store files alongside a gem, so prebake skips checksum verification on that backend.
 
 ### Does this replace Gemstash?
 No. Gemstash caches all gems (download proxy). Prebake only handles native extension compilation. They work great together: Gemstash speeds up downloads, prebake eliminates compilation.
@@ -233,7 +234,7 @@ PREBAKE_LOG_LEVEL=debug bundle install  # full diagnostics
 
 - **Ruby**: 3.2, 3.3, 3.4, 4.0+
 - **Bundler**: 2.4+ (Ruby 4.0 users should use Bundler 4.x — see [Troubleshooting](#troubleshooting))
-- **OS**: Linux (x86_64, aarch64, glibc and musl) via cloud service; other platforms via self-hosted
+- **OS**: Linux x86_64 and aarch64 (glibc) via the cloud service; every other platform, including musl/Alpine and macOS, via self-hosted
 
 ## License
 

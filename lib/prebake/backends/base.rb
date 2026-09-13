@@ -35,20 +35,11 @@ module Prebake
         return if url.start_with?("https://")
         return if ENV.fetch("PREBAKE_ALLOW_INSECURE", "false") == "true"
         return unless url.start_with?("http://")
-        return if darwin_with_default_host?(url)
 
         Logger.warn(
           "Using insecure HTTP connection to #{url}. " \
           "Set PREBAKE_ALLOW_INSECURE=true to suppress this warning."
         )
-      end
-
-      private
-
-      def darwin_with_default_host?(url)
-        RUBY_PLATFORM.include?("darwin") &&
-          Prebake.backend_type == "http" &&
-          url.chomp("/") == Prebake::DEFAULT_HTTP_URL
       end
     end
   end
