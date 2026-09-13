@@ -176,7 +176,7 @@ Recommended values for `PREBAKE_MAX_GLIBC`:
 | Ubuntu 22.04 / Debian 12 | `2.35` |
 | Ubuntu 24.04 | `2.39` |
 
-Darwin and musl (Alpine) consumers bypass the check — the platform cache key already segregates those hosts.
+Darwin hosts skip the check outright, since it only applies to Linux. musl (Alpine) hosts do run it, but musl binaries carry no `GLIBC_` symbols, so there is no required version to compare against and the check passes. In both cases the platform cache key already segregates those hosts, so a glibc-linked binary never reaches them in the first place.
 
 ## Portability (static Ruby)
 
@@ -205,7 +205,7 @@ For gems on this list, prebake skips the native extension build entirely on stat
 Yes. Prebake is designed for Ruby 3.2+ and fully supports Ruby 4.0. Cache keys include the Ruby ABI version so gems compiled for Ruby 4.0 are never mixed with Ruby 3.3.
 
 ### Is this safe? Can someone inject malicious binaries?
-The hosted service only builds from rubygems.org; users cannot push binaries. For self-hosted setups, SHA-256 checksums are verified on download.
+The hosted service only builds from rubygems.org; users cannot push binaries. Self-hosted setups on the `http` and `s3` backends store a SHA-256 sidecar alongside each gem and verify it on download, falling back to a source build on mismatch. Gemstash cannot store files alongside a gem, so prebake skips checksum verification on that backend.
 
 ### Does this replace Gemstash?
 No. Gemstash caches all gems (download proxy). Prebake only handles native extension compilation. They work great together: Gemstash speeds up downloads, prebake eliminates compilation.
