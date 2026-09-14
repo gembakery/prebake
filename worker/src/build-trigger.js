@@ -108,9 +108,22 @@ export async function triggerBuild(cacheKey, env, clientIp) {
 
   const nonce = crypto.randomUUID();
 
-  await env.R2_BUCKET.put(pendingKey, "", {
+  // Claim the key atomically. The existence check above is a read that happened
+  // a rubygems.org round-trip ago, so concurrent cache misses all reach here
+  // believing they are the only build. An unconditional put would leave only the
+  // last nonce in the marker, and every other dispatched build would 403 at push
+  // time after burning a runner and a monthly build slot.
+  const claimed = await env.R2_BUCKET.put(pendingKey, "", {
+    onlyIf: existingPending
+      ? { etagMatches: existingPending.etag }
+      : new Headers({ "If-None-Match": "*" }),
     customMetadata: { triggered_at: new Date().toISOString(), nonce },
   });
+
+  if (!claimed) {
+    console.log(`Build already claimed for ${cacheKey}`);
+    return;
+  }
 
   const response = await fetch(
     `https://api.github.com/repos/${env.GITHUB_REPO}/actions/workflows/build-gem.yml/dispatches`,
