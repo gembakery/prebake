@@ -27,7 +27,7 @@ class ExtensionValidatorTest < Minitest::Test
     Prebake::ExtensionValidator.validate(spec)
 
     refute File.exist?(File.join(@extension_dir, "foo.so")),
-      "Should not copy binaries when .prebake marker is absent"
+           "Should not copy binaries when .prebake marker is absent"
   end
 
   def test_skips_correct_layout
@@ -45,7 +45,7 @@ class ExtensionValidatorTest < Minitest::Test
     Prebake::ExtensionValidator.validate(spec)
 
     refute File.exist?(File.join(@extension_dir, "bar.so")),
-      "Should not copy nested binaries when root-level binaries already exist"
+           "Should not copy nested binaries when root-level binaries already exist"
   end
 
   def test_fixes_extension_pattern
@@ -96,7 +96,7 @@ class ExtensionValidatorTest < Minitest::Test
     Prebake::ExtensionValidator.validate(spec)
 
     refute File.exist?(File.join(@extension_dir, "foo.so")),
-      "Should not copy binaries from lib/<subdir>/ (only direct children of lib/)"
+           "Should not copy binaries from lib/<subdir>/ (only direct children of lib/)"
   end
 
   def test_skips_symlinks
@@ -115,7 +115,7 @@ class ExtensionValidatorTest < Minitest::Test
     Prebake::ExtensionValidator.validate(spec)
 
     refute File.exist?(File.join(@extension_dir, "linked.so")),
-      "Should not copy symlinked binaries"
+           "Should not copy symlinked binaries"
   end
 
   def test_skips_empty_files
@@ -131,7 +131,7 @@ class ExtensionValidatorTest < Minitest::Test
     Prebake::ExtensionValidator.validate(spec)
 
     refute File.exist?(File.join(@extension_dir, "empty.so")),
-      "Should not copy zero-byte binaries"
+           "Should not copy zero-byte binaries"
   end
 
   def test_idempotent
@@ -155,5 +155,4 @@ class ExtensionValidatorTest < Minitest::Test
     root_binaries = Dir.glob(File.join(@extension_dir, "*.so"))
     assert_equal 1, root_binaries.length, "Should not duplicate files on second run"
   end
-
 end

@@ -10,7 +10,10 @@ module Prebake
   module ElfInspector
     def self.required_glibc_for_gem(gem_path)
       versions = []
-      each_gem_binary(gem_path) { |binary| v = required_glibc(binary); versions << v if v }
+      each_gem_binary(gem_path) do |binary|
+        v = required_glibc(binary)
+        versions << v if v
+      end
       versions.empty? ? nil : versions.max_by { |v| Gem::Version.new(v) }
     rescue StandardError => e
       # Malformed gem, missing objdump, or I/O error — treat as unknown, let
@@ -69,7 +72,7 @@ module Prebake
       Dir.mktmpdir("prebake-gem") do |tmpdir|
         Gem::Package.new(gem_path).extract_files(tmpdir)
         Dir.glob(File.join(tmpdir, "**/*.{so,bundle,dll}")).each do |binary|
-          next if File.symlink?(binary) || File.size(binary).zero?
+          next if File.symlink?(binary) || File.empty?(binary)
 
           yield binary
         end

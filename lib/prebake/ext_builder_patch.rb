@@ -11,6 +11,14 @@ require_relative "logger"
 
 module Prebake
   module ExtBuilderPatch
+    # The metrics cops are off for this method deliberately. It is a cascade of
+    # cache checks where every failure path falls through to `super`, the real
+    # source build. Extracting any stage would mean returning a sentinel for the
+    # caller to turn back into `super`, which reads worse than the cascade and
+    # risks silently installing a gem with no compiled binaries if a branch is
+    # mistranslated.
+    # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity
+    # rubocop:disable Metrics/MethodLength, Metrics/PerceivedComplexity
     def build_extensions
       return super unless @spec.extensions.any?
       return super unless Prebake.enabled?
@@ -59,7 +67,7 @@ module Prebake
 
         unless installed
           Prebake.backend.delete(cache_key)
-          return super
+          super
         end
       else
         super
@@ -67,6 +75,8 @@ module Prebake
     ensure
       FileUtils.rm_f(cached_gem) if cached_gem
     end
+    # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity
+    # rubocop:enable Metrics/MethodLength, Metrics/PerceivedComplexity
 
     private
 
