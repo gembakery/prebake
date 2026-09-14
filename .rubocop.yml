@@ -12,6 +12,8 @@ Style/StringLiterals:
 
 Metrics/ClassLength:
   Max: 150
+  Exclude:
+    - "test/**/*"
 
 Metrics/AbcSize:
   Max: 30

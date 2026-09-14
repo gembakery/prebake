@@ -24,7 +24,7 @@ module Prebake
 
       nested.each do |binary|
         next if File.symlink?(binary)
-        next if File.size(binary).zero?
+        next if File.empty?(binary)
 
         dest = File.join(ext_dir, File.basename(binary))
         next if File.exist?(dest)
