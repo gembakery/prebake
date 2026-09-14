@@ -1,5 +1,7 @@
+// Version segment allows letters so prereleases (1.18.0.rc1) reach
+// parseCacheKey, which already accepts them.
 export const CACHE_KEY_REGEX =
-  /^[a-zA-Z0-9_.-]+-[0-9.]+-[a-z0-9_-]+-ruby[0-9.]+\.gem$/;
+  /^[a-zA-Z0-9_.-]+-[0-9][0-9a-zA-Z.]*-[a-z0-9_-]+-ruby[0-9.]+\.gem$/;
 
 export function parseCacheKey(cacheKey) {
   const match = cacheKey.match(
