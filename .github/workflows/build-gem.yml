@@ -48,13 +48,17 @@ jobs:
           PLATFORM: ${{ inputs.platform }}
           RUBY_ABI: ${{ inputs.ruby_abi }}
         run: |
-          # Validate gem name: only alphanumeric, hyphens, underscores
-          if ! echo "$GEM_NAME" | grep -qE '^[a-zA-Z0-9_-]+$'; then
+          # Validate gem name: alphanumeric, hyphens, underscores, dots.
+          # RubyGems allows dots (http_parser.rb, net-http-persistent). The
+          # first character must be alphanumeric or underscore so the name can
+          # never be "." or ".." and escape a path segment downstream.
+          if ! echo "$GEM_NAME" | grep -qE '^[a-zA-Z0-9_][a-zA-Z0-9_.-]*$'; then
             echo "ERROR: Invalid gem name: $GEM_NAME"
             exit 1
           fi
-          # Validate version: only digits and dots
-          if ! echo "$GEM_VERSION" | grep -qE '^[0-9]+(\.[0-9]+)*$'; then
+          # Validate version: digit-led segments separated by dots. Letters are
+          # allowed after the first segment so prereleases (1.18.0.rc1) pass.
+          if ! echo "$GEM_VERSION" | grep -qE '^[0-9]+(\.[0-9a-zA-Z]+)*$'; then
             echo "ERROR: Invalid gem version: $GEM_VERSION"
             exit 1
           fi
