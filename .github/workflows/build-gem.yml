@@ -79,13 +79,9 @@ jobs:
         with:
           ruby-version: "${{ inputs.ruby_abi }}"
 
-      - name: Cache apt packages
-        uses: actions/cache@v5
-        with:
-          path: /var/cache/apt/archives
-          # Bump v1 → v2 etc. when you change the apt package list below
-          key: apt-native-deps-${{ inputs.platform }}-v1
-
+      # No apt package cache here on purpose. Measured on ubuntu-22.04-arm:
+      # restoring the 18 MB of .debs takes as long as letting apt fetch them,
+      # and the step is dominated by apt-get update and dpkg unpack either way.
       - name: Install common native-extension dependencies
         run: |
           sudo apt-get update -qq
@@ -99,8 +95,6 @@ jobs:
             libvips-dev \
             libffi-dev \
             libyaml-dev
-          # Fix permissions so actions/cache post step can tar the archives
-          sudo chmod -R a+r /var/cache/apt/archives
 
       - name: Install rubygems-build-binary
         run: gem install rubygems-build-binary -v 0.0.2
