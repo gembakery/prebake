@@ -54,34 +54,7 @@ module Prebake
       Dir.glob(File.join(build_dir, "**/*.{so,bundle,dll}")).each { |f| File.delete(f) }
 
       ext_dir = @spec.extension_dir
-      if ext_dir && File.directory?(ext_dir)
-        # Collect binaries at root and one level deep (e.g., nokogiri/nokogiri.so).
-        binaries = Dir.glob(File.join(ext_dir, "*.{so,bundle,dll}")) +
-                   Dir.glob(File.join(ext_dir, "*/*.{so,bundle,dll}"))
-
-        # Ruby 4.0+ places compiled extensions in extension/<platform>/<abi>/
-        # within extension_dir.  Collect these too, normalizing their paths
-        # to root level so the cached gem is layout-agnostic.
-        Dir.glob(File.join(ext_dir, "extension/*/*/*.{so,bundle,dll}")).each do |binary|
-          relative = binary.delete_prefix("#{ext_dir}/")
-          normalized = relative.sub(%r{\Aextension/[^/]+/[^/]+/}, "")
-          # Skip if a root-level binary with the same name already exists
-          next if binaries.any? { |b| b.delete_prefix("#{ext_dir}/") == normalized }
-
-          binaries << binary
-        end
-
-        binaries.each do |binary|
-          next if File.symlink?(binary)
-          next if File.size(binary).zero?
-          relative = binary.delete_prefix("#{ext_dir}/")
-          # Normalize extension/<platform>/<abi>/ paths to root level
-          relative = relative.sub(%r{\Aextension/[^/]+/[^/]+/}, "")
-          dest = File.join(build_dir, relative)
-          FileUtils.mkdir_p(File.dirname(dest))
-          FileUtils.cp(binary, dest)
-        end
-      end
+      copy_installed_binaries(ext_dir, build_dir) if ext_dir && File.directory?(ext_dir)
 
       prefix = "#{build_dir}/"
       compiled = Dir.glob(File.join(build_dir, "**/*.{so,bundle,dll}"))
@@ -89,6 +62,39 @@ module Prebake
       platform_spec.files = platform_spec.files | compiled
 
       platform_spec
+    end
+
+    def copy_installed_binaries(ext_dir, build_dir)
+      installed_binaries(ext_dir).each do |binary|
+        next if File.symlink?(binary)
+        next if File.empty?(binary)
+
+        dest = File.join(build_dir, root_level_path(binary, ext_dir))
+        FileUtils.mkdir_p(File.dirname(dest))
+        FileUtils.cp(binary, dest)
+      end
+    end
+
+    # Binaries at root and one level deep (e.g., nokogiri/nokogiri.so), plus the
+    # extension/<platform>/<abi>/ layout Ruby 4.0+ installs into.  A nested
+    # binary is skipped when a root-level one already claims its normalized
+    # path, so the cached gem stays layout-agnostic.
+    def installed_binaries(ext_dir)
+      binaries = Dir.glob(File.join(ext_dir, "*.{so,bundle,dll}")) +
+                 Dir.glob(File.join(ext_dir, "*/*.{so,bundle,dll}"))
+
+      Dir.glob(File.join(ext_dir, "extension/*/*/*.{so,bundle,dll}")).each do |binary|
+        normalized = root_level_path(binary, ext_dir)
+        next if binaries.any? { |b| b.delete_prefix("#{ext_dir}/") == normalized }
+
+        binaries << binary
+      end
+
+      binaries
+    end
+
+    def root_level_path(binary, ext_dir)
+      binary.delete_prefix("#{ext_dir}/").sub(%r{\Aextension/[^/]+/[^/]+/}, "")
     end
   end
 end

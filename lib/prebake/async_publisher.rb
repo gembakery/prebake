@@ -76,7 +76,8 @@ module Prebake
       end
 
       if !Prebake.libruby_available? && ElfInspector.libruby_needed_for_gem?(gem_path)
-        Logger.warn "Skipping push of #{cache_key}: binary requires libruby.so (dynamic Ruby) but this is a static Ruby build; binary would crash on this platform"
+        Logger.warn "Skipping push of #{cache_key}: binary requires libruby.so (dynamic Ruby) " \
+                    "but this is a static Ruby build; binary would crash on this platform"
         FileUtils.rm_f(gem_path)
         return nil
       end
