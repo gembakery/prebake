@@ -22,6 +22,7 @@ module Prebake
           dest = File.join(spec.extension_dir, normalized_path(binary, tmpdir))
           FileUtils.mkdir_p(File.dirname(dest))
           FileUtils.cp(binary, dest)
+          restore_in_gem_dir(binary, tmpdir, spec)
           extracted_count += 1
         end
       end
@@ -59,6 +60,20 @@ module Prebake
       return relative unless relative.start_with?("extension/", "extensions/")
 
       relative.sub(%r{\Aextensions?/[^/]+/[^/]+/}, "")
+    end
+
+    # A source build leaves binaries in the gem dir too: ffi-compiler builds in
+    # place under ext/, and RubyGems copies extconf output into lib/. FFI gems
+    # dlopen those exact paths (llhttp-ffi, sassc). Only ext/ and lib/ are
+    # restored, because self-hosted cached gems put extension_dir binaries at
+    # the gem root, where no build would leave them.
+    def self.restore_in_gem_dir(binary, tmpdir, spec)
+      relative = binary.delete_prefix("#{tmpdir}/")
+      return unless relative.start_with?("ext/", "lib/")
+
+      dest = File.join(spec.full_gem_path, relative)
+      FileUtils.mkdir_p(File.dirname(dest))
+      FileUtils.cp(binary, dest)
     end
   end
 end

@@ -88,7 +88,7 @@ All configuration is done through environment variables. No code changes require
 2. Prebake intercepts `Gem::Ext::Builder#build_extensions` before compilation starts.
 3. A cache key is generated from the gem name, version, platform (for example `aarch64-linux`), and Ruby ABI version (e.g., `4.0`).
 4. The plugin checks the configured backend for a precompiled binary matching that key.
-5. **Cache hit**: the prebuilt `.so`/`.bundle` files are extracted directly, with no compiler needed.
+5. **Cache hit**: the prebuilt `.so`/`.bundle` files are extracted to the same places a source build puts them, with no compiler needed.
 6. **Cache miss**: Bundler compiles from source as usual (no impact, same as without the plugin).
 
 ### Publishing compiled gems (publisher)
@@ -227,7 +227,7 @@ PREBAKE_LOG_LEVEL=debug bundle install  # full diagnostics
 - `Backend initialization failed`: check your backend URL and credentials. The plugin disables itself gracefully and Bundler continues normally.
 - `Checksum mismatch`: the downloaded binary doesn't match the stored SHA-256. The plugin automatically falls back to compiling from source.
 - `LoadError: cannot load such file -- bigdecimal.so` (Ruby 4.0): RubyGems 4 [stopped copying `.so` files into `lib/`](https://github.com/ruby/rubygems/pull/9240), and Bundler 2.5.x doesn't properly resolve the new extension directory layout. This is a Bundler bug, not a prebake issue. Fix it by upgrading Bundler: `gem install bundler && bundle update --bundler`. If you're using `ruby/setup-ruby` with `bundler-cache: true` in CI, also delete the stale Actions cache so the extensions are rebuilt with the new Bundler.
-- `LoadError: Could not open library '.../sassc-2.4.0/lib/sassc/libsass.so'` (Ruby 4.0): same root cause as above — RubyGems 4 [stopped copying `.so` files into `lib/`](https://github.com/ruby/rubygems/pull/9240) — but `sassc` resolves `libsass.so` via FFI's absolute-path `File.expand_path("libsass.#{dl_ext}", __dir__)`, which dlopens the literal path under `gem_dir/lib/sassc/`. Bundler can't make `$LOAD_PATH` rescue this, so a Bundler upgrade alone won't fix it. Reproducible without prebake. Switch to [`sassc-embedded`](https://rubygems.org/gems/sassc-embedded), a drop-in replacement that ships a precompiled `libsass` and avoids the FFI absolute-path dance, or pin Ruby 3.x.
+- `LoadError: Could not open library '.../sassc-2.4.0/lib/sassc/libsass.so'`, or `cannot find 'llhttp-ext' library` with `ffi-compiler` below 1.4: prebake before 0.3.3 put cached binaries only in the gem's extension directory, but `sassc` and `llhttp-ffi` load their library over FFI from a fixed path inside the gem directory. Upgrade prebake, then reinstall the affected gem once with `bundle pristine sassc` (or `llhttp-ffi`). Bundler treats the broken install as complete, so a plain `bundle install` leaves it in place.
 - To disable for a single run: `PREBAKE_ENABLED=false bundle install`.
 
 ## Compatibility
