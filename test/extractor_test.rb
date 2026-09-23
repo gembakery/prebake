@@ -9,7 +9,9 @@ class ExtractorTest < Minitest::Test
   def setup
     @tmpdir = Dir.mktmpdir
     @extension_dir = File.join(@tmpdir, "extensions")
+    @gem_dir = File.join(@tmpdir, "gem")
     FileUtils.mkdir_p(@extension_dir)
+    FileUtils.mkdir_p(@gem_dir)
   end
 
   def teardown
@@ -73,6 +75,7 @@ class ExtractorTest < Minitest::Test
 
     spec = mock("spec")
     spec.stubs(:extension_dir).returns(@extension_dir)
+    spec.stubs(:full_gem_path).returns(@gem_dir)
 
     Prebake::Extractor.install(gem_path, spec)
 
@@ -137,12 +140,58 @@ class ExtractorTest < Minitest::Test
 
     spec = mock("spec")
     spec.stubs(:extension_dir).returns(@extension_dir)
+    spec.stubs(:full_gem_path).returns(@gem_dir)
 
     Prebake::Extractor.install(gem_path, spec)
 
     extracted = File.join(@extension_dir, "testgem/testgem.so")
     assert File.exist?(extracted), "Expected lib/ prefix to be stripped"
     assert_equal "legacy-binary", File.read(extracted)
+  end
+
+  # ffi-compiler builds in place under ext/ and RubyGems copies extconf output
+  # into lib/. FFI gems such as llhttp-ffi and sassc dlopen those paths.
+  def test_restores_gem_dir_binaries_to_their_packaged_paths
+    gem_path = build_fake_platform_gem(
+      "testgem", "1.0.0",
+      files: {
+        "ext/x86_64-linux/libtestgem-ext.so" => "in-place-build-output",
+        "lib/testgem/libtestgem.so" => "lib-copy"
+      }
+    )
+
+    spec = mock("spec")
+    spec.stubs(:extension_dir).returns(@extension_dir)
+    spec.stubs(:full_gem_path).returns(@gem_dir)
+
+    Prebake::Extractor.install(gem_path, spec)
+
+    in_place = File.join(@gem_dir, "ext/x86_64-linux/libtestgem-ext.so")
+    lib_copy = File.join(@gem_dir, "lib/testgem/libtestgem.so")
+    assert File.exist?(in_place), "Expected #{in_place} to exist"
+    assert File.exist?(lib_copy), "Expected #{lib_copy} to exist"
+    assert_equal "in-place-build-output", File.read(in_place)
+    assert_equal "lib-copy", File.read(lib_copy)
+  end
+
+  # Self-hosted cached gems carry extension_dir binaries at the gem root, and
+  # extension/ is the hosted copy of extension_dir. Neither came from gem_dir.
+  def test_does_not_write_extension_dir_artifacts_into_gem_dir
+    gem_path = build_fake_platform_gem(
+      "testgem", "1.0.0",
+      files: {
+        "testgem.so" => "self-hosted-root-level",
+        "extension/x86_64-linux/4.0.0/testgem/testgem.so" => "extension-dir-copy"
+      }
+    )
+
+    spec = mock("spec")
+    spec.stubs(:extension_dir).returns(@extension_dir)
+    spec.stubs(:full_gem_path).returns(@gem_dir)
+
+    Prebake::Extractor.install(gem_path, spec)
+
+    assert_empty Dir.children(@gem_dir)
   end
 
   def test_writes_prebake_marker_on_successful_extraction
