@@ -103,6 +103,20 @@ class ExtBuilderPatchTest < Minitest::Test
     build(spec)
   end
 
+  def test_builds_from_source_when_build_args_are_set
+    spec = make_spec
+    gem_path = fake_gem_path
+    backend = mock("backend")
+    backend.stubs(:fetch_checksum).with(cache_key).returns(Digest::SHA256.file(gem_path).hexdigest)
+    backend.stubs(:fetch).with(cache_key).returns(gem_path)
+    Prebake.backend = backend
+    Prebake::Extractor.expects(:install).never
+    builder = Gem::Ext::Builder.new(spec, ["--with-pg-config=/opt/pg/bin/pg_config"])
+
+    assert_raises(Gem::Ext::BuildError) { builder.build_extensions }
+    refute File.exist?(@build_complete), "gem_build_complete marker should not be written"
+  end
+
   def test_deletes_cache_and_falls_back_when_no_binaries_in_cached_gem
     spec, backend, gem_path = stub_verified_cache_hit
     backend.expects(:delete).with(cache_key)
