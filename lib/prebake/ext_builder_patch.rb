@@ -23,6 +23,7 @@ module Prebake
       return super unless @spec.extensions.any?
       return super unless Prebake.enabled?
       return super unless Prebake.backend # nil if config failed
+      return super unless @build_args.empty? # cached binaries are compiled with default options
 
       if Prebake.optional_native_extension?(@spec.name) && !Prebake.libruby_available?
         Logger.warn "#{@spec.name}: native extension skipped (optional gem, libruby.so absent on static Ruby build)"
