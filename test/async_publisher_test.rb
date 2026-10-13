@@ -15,8 +15,8 @@ class AsyncPublisherTest < Minitest::Test
     FileUtils.rm_rf(@tmpdir)
   end
 
-  def mock_spec(name, version)
-    stub(name:, version: Gem::Version.new(version))
+  def mock_spec(name, version, build_args: [])
+    stub(name:, version: Gem::Version.new(version), build_args:)
   end
 
   def temp_gem_path(name = "fake")
@@ -96,6 +96,18 @@ class AsyncPublisherTest < Minitest::Test
     builder = stub(build: gem_path, checksum: "sha")
     Prebake::PlatformGemBuilder.stubs(:new).with(spec).returns(builder)
     Prebake::ElfInspector.expects(:required_glibc_for_gem).never
+
+    Prebake::AsyncPublisher.enqueue(spec, backend)
+    Prebake::AsyncPublisher.wait_for_completion(timeout: 5)
+  end
+
+  def test_skips_push_when_gem_was_compiled_with_build_options
+    spec = mock_spec("pg", "1.5.4", build_args: ["--with-pg-config=/opt/pg/bin/pg_config"])
+    backend = stub(exists?: false)
+    backend.expects(:push).never
+
+    builder = stub(build: temp_gem_path, checksum: "sha")
+    Prebake::PlatformGemBuilder.stubs(:new).with(spec).returns(builder)
 
     Prebake::AsyncPublisher.enqueue(spec, backend)
     Prebake::AsyncPublisher.wait_for_completion(timeout: 5)
