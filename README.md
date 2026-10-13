@@ -102,6 +102,8 @@ When `PREBAKE_PUSH_ENABLED=true` (for self-hosted setups):
 3. The gem and checksum are uploaded to the backend in the background.
 4. Future `bundle install` runs by anyone on the same platform get the precompiled version.
 
+A gem compiled with build options is never published. Everyone on the same platform would receive it as the default build of that gem, so only gems compiled with default options are uploaded.
+
 ## Supported platforms (cloud service)
 
 | Platform | Architecture | OS |

@@ -54,6 +54,8 @@ module Prebake
     end
 
     def self.build_gem(spec, backend)
+      return nil unless spec.build_args.empty? # consumers expect a cache entry to be a default build
+
       platform = Platform.generalized
       cache_key = CacheKey.for(spec.name, spec.version.to_s, platform)
 
