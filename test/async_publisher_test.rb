@@ -15,7 +15,7 @@ class AsyncPublisherTest < Minitest::Test
     FileUtils.rm_rf(@tmpdir)
   end
 
-  def mock_spec(name, version, build_args: [])
+  def build_spec(name, version, build_args: [])
     stub(name:, version: Gem::Version.new(version), build_args:)
   end
 
@@ -26,7 +26,7 @@ class AsyncPublisherTest < Minitest::Test
   end
 
   def test_enqueue_and_wait_pushes_gem
-    spec = mock_spec("testgem", "1.0.0")
+    spec = build_spec("testgem", "1.0.0")
     gem_path = temp_gem_path
     pushed = []
     backend = stub(exists?: false, push: -> { pushed << true })
@@ -44,7 +44,7 @@ class AsyncPublisherTest < Minitest::Test
   end
 
   def test_errors_in_build_are_rescued
-    spec = mock_spec("badgem", "0.1.0")
+    spec = build_spec("badgem", "0.1.0")
     backend = stub
     backend.stubs(:exists?).raises(StandardError, "boom")
     Prebake::Logger.stubs(:warn)
@@ -55,7 +55,7 @@ class AsyncPublisherTest < Minitest::Test
 
   def test_skips_push_when_built_gem_exceeds_max_glibc
     ENV["PREBAKE_MAX_GLIBC"] = "2.28"
-    spec = mock_spec("testgem", "1.0.0")
+    spec = build_spec("testgem", "1.0.0")
     gem_path = temp_gem_path
     backend = stub(exists?: false)
     backend.expects(:push).never
@@ -72,7 +72,7 @@ class AsyncPublisherTest < Minitest::Test
 
   def test_pushes_when_built_gem_within_max_glibc
     ENV["PREBAKE_MAX_GLIBC"] = "2.35"
-    spec = mock_spec("testgem", "1.0.0")
+    spec = build_spec("testgem", "1.0.0")
     gem_path = temp_gem_path
     backend = stub(exists?: false)
     backend.expects(:push).with(gem_path, anything, "sha")
@@ -88,7 +88,7 @@ class AsyncPublisherTest < Minitest::Test
   end
 
   def test_pushes_without_check_when_max_glibc_unset
-    spec = mock_spec("testgem", "1.0.0")
+    spec = build_spec("testgem", "1.0.0")
     gem_path = temp_gem_path
     backend = stub(exists?: false)
     backend.expects(:push).with(gem_path, anything, "sha")
@@ -102,7 +102,7 @@ class AsyncPublisherTest < Minitest::Test
   end
 
   def test_skips_push_when_gem_was_compiled_with_build_options
-    spec = mock_spec("pg", "1.5.4", build_args: ["--with-pg-config=/opt/pg/bin/pg_config"])
+    spec = build_spec("pg", "1.5.4", build_args: ["--with-pg-config=/opt/pg/bin/pg_config"])
     backend = stub(exists?: false)
     backend.expects(:push).never
 
@@ -114,7 +114,7 @@ class AsyncPublisherTest < Minitest::Test
   end
 
   def test_skips_push_when_built_gem_needs_libruby_on_static_ruby
-    spec = mock_spec("bootsnap", "1.23.0")
+    spec = build_spec("bootsnap", "1.23.0")
     gem_path = temp_gem_path
     backend = stub(exists?: false)
     backend.expects(:push).never
@@ -131,7 +131,7 @@ class AsyncPublisherTest < Minitest::Test
   end
 
   def test_pushes_when_libruby_needed_but_available
-    spec = mock_spec("bootsnap", "1.23.0")
+    spec = build_spec("bootsnap", "1.23.0")
     gem_path = temp_gem_path
     backend = stub(exists?: false)
     backend.expects(:push).with(gem_path, anything, "sha")
@@ -148,7 +148,7 @@ class AsyncPublisherTest < Minitest::Test
   def test_multiple_enqueues_all_processed
     pushed = []
     3.times do |i|
-      spec = mock_spec("gem#{i}", "1.0.#{i}")
+      spec = build_spec("gem#{i}", "1.0.#{i}")
       gem_path = temp_gem_path("gem#{i}")
       backend = stub(exists?: false)
       backend.stubs(:push).with { pushed << i }

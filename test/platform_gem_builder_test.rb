@@ -15,7 +15,7 @@ class PlatformGemBuilderTest < Minitest::Test
   end
 
   def test_builds_platform_gem_with_compiled_binaries
-    spec = create_installed_gem_with_extension
+    spec = build_installed_gem
 
     builder = Prebake::PlatformGemBuilder.new(spec)
     gem_path = builder.build
@@ -33,7 +33,7 @@ class PlatformGemBuilderTest < Minitest::Test
   end
 
   def test_includes_so_files_in_platform_gem
-    spec = create_installed_gem_with_extension
+    spec = build_installed_gem
 
     builder = Prebake::PlatformGemBuilder.new(spec)
     gem_path = builder.build
@@ -47,7 +47,7 @@ class PlatformGemBuilderTest < Minitest::Test
   end
 
   def test_computes_sha256_checksum
-    spec = create_installed_gem_with_extension
+    spec = build_installed_gem
 
     builder = Prebake::PlatformGemBuilder.new(spec)
     gem_path = builder.build
@@ -61,7 +61,7 @@ class PlatformGemBuilderTest < Minitest::Test
 
   def test_build_does_not_change_callers_working_directory
     original_dir = Dir.pwd
-    spec = create_installed_gem_with_extension
+    spec = build_installed_gem
 
     builder = Prebake::PlatformGemBuilder.new(spec)
     gem_path = builder.build
@@ -73,7 +73,7 @@ class PlatformGemBuilderTest < Minitest::Test
   end
 
   def test_collects_extension_platform_abi_binaries_normalized_to_root
-    spec = create_installed_gem_with_extension
+    spec = build_installed_gem
 
     # Remove root-level binary, simulate Ruby 4.0 layout where make install
     # places the .so under extension/<platform>/<abi>/ inside extension_dir
@@ -95,7 +95,7 @@ class PlatformGemBuilderTest < Minitest::Test
   end
 
   def test_prefers_root_level_binary_over_nested_extension_path
-    spec = create_installed_gem_with_extension
+    spec = build_installed_gem
 
     # Both root-level and nested binaries exist — root should win
     ext = RUBY_PLATFORM.include?("darwin") ? "bundle" : "so"
@@ -116,7 +116,7 @@ class PlatformGemBuilderTest < Minitest::Test
 
   private
 
-  def create_installed_gem_with_extension
+  def build_installed_gem
     gem_dir = File.join(@tmpdir, "testgem-1.0.0")
     extension_dir = File.join(@tmpdir, "extensions", "testgem-1.0.0")
     FileUtils.mkdir_p(File.join(gem_dir, "lib/testgem"))
