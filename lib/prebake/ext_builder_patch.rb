@@ -53,7 +53,7 @@ module Prebake
         return super
       end
 
-      if verify_checksum(cache_key, expected_checksum, cached_gem)
+      if checksum_matches?(cache_key, expected_checksum, cached_gem)
         unless PortabilityGuard.portable_for_host?(cached_gem, spec_name: @spec.name)
           # Binary is valid for other hosts; don't delete from backend.
           return super
@@ -89,7 +89,7 @@ module Prebake
       FileUtils.rm_f(trigger_path) if trigger_path
     end
 
-    def verify_checksum(cache_key, expected, gem_path)
+    def checksum_matches?(cache_key, expected, gem_path)
       return true if expected.nil?
 
       actual = Digest::SHA256.file(gem_path).hexdigest
