@@ -27,7 +27,7 @@ module Prebake
         end
       end
 
-      # Mark this extension_dir as prebake-managed for post-install validation
+      # Mark this extension_dir as prebake-managed for post-install layout repair
       FileUtils.touch(File.join(spec.extension_dir, ".prebake")) if extracted_count.positive?
 
       Logger.info "Installed precompiled #{File.basename(gem_path)} " \

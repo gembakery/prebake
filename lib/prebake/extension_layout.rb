@@ -4,14 +4,14 @@ require "fileutils"
 require_relative "logger"
 
 module Prebake
-  module ExtensionValidator
+  module ExtensionLayout
     BINARY_GLOB = "*.{so,bundle,dll}"
 
-    def self.validate_all
-      Bundler.definition.specs.each { |spec| validate(spec) }
+    def self.repair_all
+      Bundler.definition.specs.each { |spec| repair(spec) }
     end
 
-    def self.validate(spec)
+    def self.repair(spec)
       ext_dir = spec.extension_dir
       return unless File.exist?(File.join(ext_dir, ".prebake"))
 
@@ -30,7 +30,7 @@ module Prebake
         next if File.exist?(dest)
 
         FileUtils.cp(binary, dest)
-        Logger.info "Validator: copied #{File.basename(binary)} to #{ext_dir}"
+        Logger.info "Restored #{File.basename(binary)} to #{ext_dir}"
       end
     end
   end

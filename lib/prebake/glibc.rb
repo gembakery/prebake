@@ -37,10 +37,10 @@ module Prebake
     end
 
     def self.run_ldd
-      out, status = Open3.capture2e("ldd", "--version")
+      output, status = Open3.capture2e("ldd", "--version")
       return nil unless status.success?
 
-      out
+      output
     rescue Errno::ENOENT
       nil
     end

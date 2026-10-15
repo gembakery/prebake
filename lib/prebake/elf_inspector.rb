@@ -51,19 +51,19 @@ module Prebake
     end
 
     def self.needed_libraries(path)
-      out, status = Open3.capture2e("objdump", "-p", path)
+      output, status = Open3.capture2e("objdump", "-p", path)
       return [] unless status.success?
 
-      out.scan(/NEEDED\s+(\S+)/).flatten
+      output.scan(/NEEDED\s+(\S+)/).flatten
     rescue Errno::ENOENT
       []
     end
 
     def self.run_objdump(path)
-      out, status = Open3.capture2e("objdump", "-T", path)
+      output, status = Open3.capture2e("objdump", "-T", path)
       return nil unless status.success?
 
-      out
+      output
     rescue Errno::ENOENT
       nil
     end

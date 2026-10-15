@@ -24,7 +24,7 @@ class ExtBuilderPatchTest < Minitest::Test
     Prebake.reset!
   end
 
-  def make_spec(**overrides)
+  def build_spec(**overrides)
     spec = mock("spec")
     { extensions: ["ext/test/extconf.rb"], name: "testgem",
       version: Gem::Version.new(overrides.delete(:version) || "1.0.0"),
@@ -43,7 +43,7 @@ class ExtBuilderPatchTest < Minitest::Test
   def build(spec) = Gem::Ext::Builder.new(spec, "").build_extensions
 
   def stub_verified_cache_hit
-    spec = make_spec
+    spec = build_spec
     gem_path = fake_gem_path
     checksum = Digest::SHA256.file(gem_path).hexdigest
     backend = mock("backend")
@@ -61,7 +61,7 @@ class ExtBuilderPatchTest < Minitest::Test
   end
 
   def test_deletes_and_triggers_rebuild_when_no_checksum_available
-    spec = make_spec
+    spec = build_spec
     backend = mock("backend")
     backend.expects(:fetch_checksum).with(cache_key).returns(nil)
     backend.expects(:checksums_supported?).returns(true)
@@ -73,7 +73,7 @@ class ExtBuilderPatchTest < Minitest::Test
   end
 
   def test_accepts_gem_without_checksum_when_backend_does_not_support_checksums
-    spec = make_spec
+    spec = build_spec
     gem_path = fake_gem_path
     backend = mock("backend")
     backend.expects(:fetch_checksum).with(cache_key).returns(nil)
@@ -87,7 +87,7 @@ class ExtBuilderPatchTest < Minitest::Test
   end
 
   def test_falls_through_on_cache_miss
-    spec = make_spec
+    spec = build_spec
     backend = mock("backend")
     backend.stubs(:fetch_checksum).with(cache_key).returns("somechecksum")
     backend.expects(:fetch).with(cache_key).returns(nil)
@@ -96,7 +96,7 @@ class ExtBuilderPatchTest < Minitest::Test
   end
 
   def test_skips_gems_without_extensions
-    spec = make_spec(extensions: [])
+    spec = build_spec(extensions: [])
     backend = mock("backend")
     backend.expects(:fetch).never
     Prebake.backend = backend
@@ -104,7 +104,7 @@ class ExtBuilderPatchTest < Minitest::Test
   end
 
   def test_builds_from_source_when_build_args_are_set
-    spec = make_spec
+    spec = build_spec
     gem_path = fake_gem_path
     backend = mock("backend")
     backend.stubs(:fetch_checksum).with(cache_key).returns(Digest::SHA256.file(gem_path).hexdigest)
@@ -126,7 +126,7 @@ class ExtBuilderPatchTest < Minitest::Test
   end
 
   def test_falls_through_when_backend_nil
-    spec = make_spec
+    spec = build_spec
     Prebake.backend = nil
     assert_raises(Gem::Ext::BuildError) { build(spec) }
   end
@@ -190,7 +190,7 @@ class ExtBuilderPatchTest < Minitest::Test
   # optional native extension + static Ruby
 
   def test_skips_native_extension_for_optional_gem_on_static_ruby
-    spec = make_spec(name: "bootsnap")
+    spec = build_spec(name: "bootsnap")
     Prebake.stubs(:optional_native_extension?).with("bootsnap").returns(true)
     Prebake.stubs(:libruby_available?).returns(false)
     Prebake.backend = mock("backend")
@@ -214,7 +214,7 @@ class ExtBuilderPatchTest < Minitest::Test
 
   def test_optional_gem_skip_respects_env_var
     ENV["PREBAKE_OPTIONAL_NATIVE_EXTENSIONS"] = "myoptionalgem"
-    spec = make_spec(name: "myoptionalgem")
+    spec = build_spec(name: "myoptionalgem")
     Prebake.stubs(:libruby_available?).returns(false)
     Prebake.backend = mock("backend")
     Prebake.backend.expects(:fetch).never
@@ -229,7 +229,7 @@ class ExtBuilderPatchTest < Minitest::Test
     # bootsnap 1.18+ requires its native extension unconditionally; skipping
     # the build produces a broken install. Ensure it goes through the normal
     # cache/source-build path even on static Ruby.
-    spec = make_spec(name: "bootsnap")
+    spec = build_spec(name: "bootsnap")
     Prebake.stubs(:libruby_available?).returns(false)
     key = Prebake::CacheKey.for("bootsnap", "1.0.0", Prebake::Platform.generalized)
     backend = mock("backend")

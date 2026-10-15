@@ -27,7 +27,7 @@ module Prebake
 
       if Prebake.optional_native_extension?(@spec.name) && !Prebake.libruby_available?
         Logger.warn "#{@spec.name}: native extension skipped (optional gem, libruby.so absent on static Ruby build)"
-        install_without_native_extension
+        mark_build_complete
         return
       end
 
@@ -53,7 +53,7 @@ module Prebake
         return super
       end
 
-      if verify_checksum(cache_key, expected_checksum, cached_gem)
+      if checksum_matches?(cache_key, expected_checksum, cached_gem)
         unless PortabilityGuard.portable_for_host?(cached_gem, spec_name: @spec.name)
           # Binary is valid for other hosts; don't delete from backend.
           return super
@@ -85,11 +85,11 @@ module Prebake
       Logger.warn "No checksum available for #{cache_key}, removing cached gem"
       Prebake.backend.delete(cache_key)
       # GET triggers the worker to dispatch a rebuild via GH Actions on cache miss
-      trigger_path = Prebake.backend.fetch(cache_key)
-      FileUtils.rm_f(trigger_path) if trigger_path
+      leftover = Prebake.backend.fetch(cache_key)
+      FileUtils.rm_f(leftover) if leftover
     end
 
-    def verify_checksum(cache_key, expected, gem_path)
+    def checksum_matches?(cache_key, expected, gem_path)
       return true if expected.nil?
 
       actual = Digest::SHA256.file(gem_path).hexdigest
@@ -99,10 +99,6 @@ module Prebake
         Logger.warn "Checksum mismatch for #{cache_key}: expected #{expected}, got #{actual}"
         false
       end
-    end
-
-    def install_without_native_extension
-      mark_build_complete
     end
 
     def install_from_cache(gem_path)

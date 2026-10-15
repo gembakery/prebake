@@ -20,7 +20,7 @@ module Prebake
       @mutex.synchronize { @pending_specs << [spec, backend] }
     end
 
-    def self.wait_for_completion(timeout: 120)
+    def self.publish_pending(timeout: 120)
       specs = @mutex.synchronize { @pending_specs.dup }
       return if specs.empty?
 
