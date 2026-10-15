@@ -9,12 +9,12 @@ module Prebake
       [/\Aaarch64-linux(-gnu)?\z/, "aarch64-linux"]
     ].freeze
 
-    def self.normalize(platform_string)
+    def self.normalize(platform)
       NORMALIZATIONS.each do |pattern, normalized|
-        return normalized if platform_string.match?(pattern)
+        return normalized if platform.match?(pattern)
       end
 
-      platform_string
+      platform
     end
 
     def self.generalized
