@@ -76,9 +76,9 @@ export async function triggerBuild(cacheKey, env, clientIp) {
   ]);
 
   if (existingPending) {
-    const meta = existingPending.customMetadata;
-    if (meta && meta.triggered_at) {
-      const age = Date.now() - new Date(meta.triggered_at).getTime();
+    const metadata = existingPending.customMetadata;
+    if (metadata && metadata.triggered_at) {
+      const age = Date.now() - new Date(metadata.triggered_at).getTime();
       if (age < 3600000) {
         console.log(
           `Build pending for ${cacheKey} (${Math.round(age / 1000)}s ago)`,
