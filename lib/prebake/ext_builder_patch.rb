@@ -27,7 +27,7 @@ module Prebake
 
       if Prebake.optional_native_extension?(@spec.name) && !Prebake.libruby_available?
         Logger.warn "#{@spec.name}: native extension skipped (optional gem, libruby.so absent on static Ruby build)"
-        install_without_native_extension
+        mark_build_complete
         return
       end
 
@@ -99,10 +99,6 @@ module Prebake
         Logger.warn "Checksum mismatch for #{cache_key}: expected #{expected}, got #{actual}"
         false
       end
-    end
-
-    def install_without_native_extension
-      mark_build_complete
     end
 
     def install_from_cache(gem_path)
