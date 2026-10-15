@@ -10,14 +10,14 @@ module Prebake
     # instead of installing a broken .so. Extend via PREBAKE_OPTIONAL_NATIVE_EXTENSIONS=gem1,gem2.
     # Intentionally empty: bootsnap 1.18+ requires its native extension unconditionally;
     # skipping the build produces a broken install.
-    OPTIONAL_NATIVE_EXTENSIONS_DEFAULT = %w[].freeze
+    DEFAULT_OPTIONAL_NATIVE_EXTENSIONS = %w[].freeze
 
     class << self
       def optional_native_extensions
         @optional_native_extensions ||= begin
           extra = ENV.fetch("PREBAKE_OPTIONAL_NATIVE_EXTENSIONS", "")
                      .split(",").map(&:strip).reject(&:empty?)
-          (OPTIONAL_NATIVE_EXTENSIONS_DEFAULT + extra).uniq
+          (DEFAULT_OPTIONAL_NATIVE_EXTENSIONS + extra).uniq
         end
       end
 
