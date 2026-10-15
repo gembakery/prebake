@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
 require "test_helper"
-require "prebake/extension_validator"
+require "prebake/extension_layout"
 require "fileutils"
 
-class ExtensionValidatorTest < Minitest::Test
+class ExtensionLayoutTest < Minitest::Test
   def setup
     @tmpdir = Dir.mktmpdir
     @extension_dir = File.join(@tmpdir, "extensions", "testgem-1.0.0")
@@ -24,7 +24,7 @@ class ExtensionValidatorTest < Minitest::Test
     spec = mock("spec")
     spec.stubs(:extension_dir).returns(@extension_dir)
 
-    Prebake::ExtensionValidator.validate(spec)
+    Prebake::ExtensionLayout.repair(spec)
 
     refute File.exist?(File.join(@extension_dir, "foo.so")),
            "Should not copy binaries when .prebake marker is absent"
@@ -42,7 +42,7 @@ class ExtensionValidatorTest < Minitest::Test
     spec = mock("spec")
     spec.stubs(:extension_dir).returns(@extension_dir)
 
-    Prebake::ExtensionValidator.validate(spec)
+    Prebake::ExtensionLayout.repair(spec)
 
     refute File.exist?(File.join(@extension_dir, "bar.so")),
            "Should not copy nested binaries when root-level binaries already exist"
@@ -58,7 +58,7 @@ class ExtensionValidatorTest < Minitest::Test
     spec = mock("spec")
     spec.stubs(:extension_dir).returns(@extension_dir)
 
-    Prebake::ExtensionValidator.validate(spec)
+    Prebake::ExtensionLayout.repair(spec)
 
     dest = File.join(@extension_dir, "foo.so")
     assert File.exist?(dest), "Expected foo.so to be copied to extension_dir root"
@@ -75,7 +75,7 @@ class ExtensionValidatorTest < Minitest::Test
     spec = mock("spec")
     spec.stubs(:extension_dir).returns(@extension_dir)
 
-    Prebake::ExtensionValidator.validate(spec)
+    Prebake::ExtensionLayout.repair(spec)
 
     dest = File.join(@extension_dir, "bar.so")
     assert File.exist?(dest), "Expected bar.so to be copied to extension_dir root"
@@ -93,7 +93,7 @@ class ExtensionValidatorTest < Minitest::Test
     spec = mock("spec")
     spec.stubs(:extension_dir).returns(@extension_dir)
 
-    Prebake::ExtensionValidator.validate(spec)
+    Prebake::ExtensionLayout.repair(spec)
 
     refute File.exist?(File.join(@extension_dir, "foo.so")),
            "Should not copy binaries from lib/<subdir>/ (only direct children of lib/)"
@@ -112,7 +112,7 @@ class ExtensionValidatorTest < Minitest::Test
     spec = mock("spec")
     spec.stubs(:extension_dir).returns(@extension_dir)
 
-    Prebake::ExtensionValidator.validate(spec)
+    Prebake::ExtensionLayout.repair(spec)
 
     refute File.exist?(File.join(@extension_dir, "linked.so")),
            "Should not copy symlinked binaries"
@@ -128,7 +128,7 @@ class ExtensionValidatorTest < Minitest::Test
     spec = mock("spec")
     spec.stubs(:extension_dir).returns(@extension_dir)
 
-    Prebake::ExtensionValidator.validate(spec)
+    Prebake::ExtensionLayout.repair(spec)
 
     refute File.exist?(File.join(@extension_dir, "empty.so")),
            "Should not copy zero-byte binaries"
@@ -144,8 +144,8 @@ class ExtensionValidatorTest < Minitest::Test
     spec = mock("spec")
     spec.stubs(:extension_dir).returns(@extension_dir)
 
-    Prebake::ExtensionValidator.validate(spec)
-    Prebake::ExtensionValidator.validate(spec)
+    Prebake::ExtensionLayout.repair(spec)
+    Prebake::ExtensionLayout.repair(spec)
 
     dest = File.join(@extension_dir, "foo.so")
     assert File.exist?(dest), "Expected foo.so to exist after two runs"

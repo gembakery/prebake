@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "async_publisher"
-require_relative "extension_validator"
+require_relative "extension_layout"
 require_relative "logger"
 
 module Prebake
@@ -22,7 +22,7 @@ module Prebake
       end
 
       Bundler::Plugin::API.hook("after-install-all") do |_deps|
-        ExtensionValidator.validate_all
+        ExtensionLayout.repair_all
 
         next unless Prebake.push_enabled?
 
