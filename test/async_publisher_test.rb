@@ -25,7 +25,7 @@ class AsyncPublisherTest < Minitest::Test
     path
   end
 
-  def test_enqueue_and_wait_pushes_gem
+  def test_enqueue_and_publish_pushes_gem
     spec = build_spec("testgem", "1.0.0")
     gem_path = temp_gem_path
     pushed = []
@@ -36,11 +36,11 @@ class AsyncPublisherTest < Minitest::Test
     Prebake::PlatformGemBuilder.stubs(:new).with(spec).returns(builder)
 
     Prebake::AsyncPublisher.enqueue(spec, backend)
-    Prebake::AsyncPublisher.wait_for_completion(timeout: 5)
+    Prebake::AsyncPublisher.publish_pending(timeout: 5)
   end
 
-  def test_wait_with_no_enqueues_does_nothing
-    Prebake::AsyncPublisher.wait_for_completion(timeout: 1)
+  def test_publish_with_no_enqueues_does_nothing
+    Prebake::AsyncPublisher.publish_pending(timeout: 1)
   end
 
   def test_errors_in_build_are_rescued
@@ -50,7 +50,7 @@ class AsyncPublisherTest < Minitest::Test
     Prebake::Logger.stubs(:warn)
 
     Prebake::AsyncPublisher.enqueue(spec, backend)
-    Prebake::AsyncPublisher.wait_for_completion(timeout: 5)
+    Prebake::AsyncPublisher.publish_pending(timeout: 5)
   end
 
   def test_skips_push_when_built_gem_exceeds_max_glibc
@@ -65,7 +65,7 @@ class AsyncPublisherTest < Minitest::Test
     Prebake::ElfInspector.stubs(:required_glibc_for_gem).with(gem_path).returns("2.35")
 
     Prebake::AsyncPublisher.enqueue(spec, backend)
-    Prebake::AsyncPublisher.wait_for_completion(timeout: 5)
+    Prebake::AsyncPublisher.publish_pending(timeout: 5)
   ensure
     ENV.delete("PREBAKE_MAX_GLIBC")
   end
@@ -82,7 +82,7 @@ class AsyncPublisherTest < Minitest::Test
     Prebake::ElfInspector.stubs(:required_glibc_for_gem).with(gem_path).returns("2.28")
 
     Prebake::AsyncPublisher.enqueue(spec, backend)
-    Prebake::AsyncPublisher.wait_for_completion(timeout: 5)
+    Prebake::AsyncPublisher.publish_pending(timeout: 5)
   ensure
     ENV.delete("PREBAKE_MAX_GLIBC")
   end
@@ -98,7 +98,7 @@ class AsyncPublisherTest < Minitest::Test
     Prebake::ElfInspector.expects(:required_glibc_for_gem).never
 
     Prebake::AsyncPublisher.enqueue(spec, backend)
-    Prebake::AsyncPublisher.wait_for_completion(timeout: 5)
+    Prebake::AsyncPublisher.publish_pending(timeout: 5)
   end
 
   def test_skips_push_when_gem_was_compiled_with_build_options
@@ -110,7 +110,7 @@ class AsyncPublisherTest < Minitest::Test
     Prebake::PlatformGemBuilder.stubs(:new).with(spec).returns(builder)
 
     Prebake::AsyncPublisher.enqueue(spec, backend)
-    Prebake::AsyncPublisher.wait_for_completion(timeout: 5)
+    Prebake::AsyncPublisher.publish_pending(timeout: 5)
   end
 
   def test_skips_push_when_built_gem_needs_libruby_on_static_ruby
@@ -125,7 +125,7 @@ class AsyncPublisherTest < Minitest::Test
     Prebake::ElfInspector.stubs(:libruby_needed_for_gem?).with(gem_path).returns(true)
 
     Prebake::AsyncPublisher.enqueue(spec, backend)
-    Prebake::AsyncPublisher.wait_for_completion(timeout: 5)
+    Prebake::AsyncPublisher.publish_pending(timeout: 5)
 
     refute File.exist?(gem_path), "broken gem file should be cleaned up"
   end
@@ -142,7 +142,7 @@ class AsyncPublisherTest < Minitest::Test
     Prebake::ElfInspector.expects(:libruby_needed_for_gem?).never
 
     Prebake::AsyncPublisher.enqueue(spec, backend)
-    Prebake::AsyncPublisher.wait_for_completion(timeout: 5)
+    Prebake::AsyncPublisher.publish_pending(timeout: 5)
   end
 
   def test_multiple_enqueues_all_processed
@@ -159,7 +159,7 @@ class AsyncPublisherTest < Minitest::Test
       Prebake::AsyncPublisher.enqueue(spec, backend)
     end
 
-    Prebake::AsyncPublisher.wait_for_completion(timeout: 10)
+    Prebake::AsyncPublisher.publish_pending(timeout: 10)
     assert_equal 3, pushed.size
   end
 end

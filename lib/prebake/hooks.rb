@@ -26,7 +26,7 @@ module Prebake
 
         next unless Prebake.push_enabled?
 
-        AsyncPublisher.wait_for_completion
+        AsyncPublisher.publish_pending
       end
 
       Logger.debug "Hooks registered"
