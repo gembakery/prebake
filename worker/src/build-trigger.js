@@ -88,8 +88,8 @@ export async function triggerBuild(cacheKey, env, clientIp) {
     }
   }
 
-  const valid = await validateGemVersion(gemResponse, parsed);
-  if (!valid) {
+  const isValid = await validateGemVersion(gemResponse, parsed);
+  if (!isValid) {
     if (existingPending) await env.R2_BUCKET.delete(pendingKey);
     return;
   }
