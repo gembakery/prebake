@@ -94,7 +94,8 @@ jobs:
             libre2-dev \
             libvips-dev \
             libffi-dev \
-            libyaml-dev
+            libyaml-dev \
+            patchelf
 
       - name: Install rubygems-build-binary
         run: gem install rubygems-build-binary -v 0.0.2
@@ -114,6 +115,36 @@ jobs:
         run: |
           gem build_binary "${GEM_NAME}-${GEM_VERSION}.gem"
           ls -la *.gem
+
+      - name: Drop the libruby link
+        env:
+          GEM_NAME: ${{ inputs.gem_name }}
+          GEM_VERSION: ${{ inputs.gem_version }}
+        run: |
+          ruby - "${GEM_NAME}-${GEM_VERSION}"-*.gem <<'RUBY'
+          require "fileutils"
+          require "open3"
+          require "rubygems/package"
+          require "tmpdir"
+
+          def libruby(binary) = Open3.capture2("objdump", "-p", binary).first.scan(/NEEDED\s+(libruby\S*)/).flatten
+
+          gem_path = File.expand_path(ARGV.fetch(0))
+          package = Gem::Package.new(gem_path)
+
+          Dir.mktmpdir do |dir|
+            package.extract_files(dir)
+            binaries = Dir.glob(File.join(dir, "**/*.so")).select { libruby(_1).any? }
+            next if binaries.empty?
+
+            binaries.each do |binary|
+              libruby(binary).each { system("patchelf", "--remove-needed", _1, binary, exception: true) }
+              abort "#{File.basename(binary)} still links libruby" if libruby(binary).any?
+            end
+
+            Dir.chdir(dir) { FileUtils.mv(Gem::Package.build(package.spec), gem_path) }
+          end
+          RUBY
 
       - name: Push to cache
         env:
