@@ -4,6 +4,7 @@ require "test_helper"
 require "prebake/platform_gem_builder"
 require "rubygems/package"
 require "fileutils"
+require "bundler"
 
 class PlatformGemBuilderTest < Minitest::Test
   def setup
@@ -114,6 +115,18 @@ class PlatformGemBuilderTest < Minitest::Test
     FileUtils.rm_f(gem_path) if gem_path
   end
 
+  def test_builds_gem_resolved_through_compact_index
+    spec = build_compact_index_spec
+
+    gem_path = Prebake::PlatformGemBuilder.new(spec).build
+
+    package = Gem::Package.new(gem_path)
+    assert_equal "Test gem", package.spec.summary
+    assert_includes package.spec.files, "lib/testgem.rb"
+  ensure
+    FileUtils.rm_f(gem_path) if gem_path
+  end
+
   private
 
   def build_installed_gem
@@ -145,6 +158,42 @@ class PlatformGemBuilderTest < Minitest::Test
     spec.define_singleton_method(:gem_dir) { gem_dir }
     spec.define_singleton_method(:full_gem_path) { gem_dir }
     spec.define_singleton_method(:extension_dir) { extension_dir }
+
+    spec
+  end
+
+  # The spec the after-install hook gets for a gem from the rubygems.org
+  # compact index, left as Bundler leaves it after installing into a gem home.
+  # It has no summary, authors or files of its own.
+  def build_compact_index_spec
+    gemspec = Gem::Specification.new do |s|
+      s.name = "testgem"
+      s.version = "1.0.0"
+      s.authors = ["Test"]
+      s.summary = "Test gem"
+      s.homepage = "https://example.com"
+      s.license = "MIT"
+      s.extensions = ["ext/testgem/extconf.rb"]
+      s.files = ["lib/testgem.rb", "ext/testgem/extconf.rb"]
+    end
+
+    spec = Bundler::EndpointSpecification.new("testgem", "1.0.0", "ruby", nil, [],
+                                              { "ruby" => [">= 3.2"], "rubygems" => [">= 3.4"] })
+    spec.__swap__(gemspec)
+    spec.full_gem_path = File.join(@tmpdir, "gems", "testgem-1.0.0")
+    spec.loaded_from = File.join(@tmpdir, "specifications", "testgem-1.0.0.gemspec")
+    spec.base_dir = @tmpdir
+
+    gemspec.files.each do |file|
+      FileUtils.mkdir_p(File.dirname(File.join(spec.gem_dir, file)))
+      File.write(File.join(spec.gem_dir, file), "# #{file}")
+    end
+    ext = RUBY_PLATFORM.include?("darwin") ? "bundle" : "so"
+    FileUtils.mkdir_p(spec.extension_dir)
+    File.write(File.join(spec.extension_dir, "testgem.#{ext}"), "FAKE_BINARY")
+
+    FileUtils.mkdir_p(File.dirname(spec.cache_file))
+    Dir.chdir(spec.gem_dir) { FileUtils.mv(Gem::Package.build(gemspec), spec.cache_file) }
 
     spec
   end

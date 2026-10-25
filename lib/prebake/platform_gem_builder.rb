@@ -44,7 +44,7 @@ module Prebake
     private
 
     def build_platform_spec(build_dir)
-      platform_spec = @spec.dup
+      platform_spec = gemspec.dup
       platform_spec.platform = Gem::Platform.new(Platform.generalized)
       platform_spec.extensions = []
 
@@ -62,6 +62,12 @@ module Prebake
       platform_spec.files = platform_spec.files | compiled
 
       platform_spec
+    end
+
+    # Bundler's spec for a compact-index gem has no summary, authors or files,
+    # so read the full gemspec from the downloaded .gem. Path and git gems have none.
+    def gemspec
+      File.exist?(@spec.cache_file) ? Gem::Package.new(@spec.cache_file).spec : @spec
     end
 
     def copy_installed_binaries(ext_dir, build_dir)
