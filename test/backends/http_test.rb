@@ -30,6 +30,48 @@ class HttpBackendTest < Minitest::Test
     assert_nil @backend.fetch(@cache_key)
   end
 
+  CHECKSUM = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+  OTHER_CHECKSUM = "60303ae22b998861bce3b28f33eec1be758a213c86c93c076dbe9f558c11c752"
+
+  def test_fetch_with_checksum_takes_the_checksum_from_the_gem_response
+    stub_gem(headers: { "X-Prebake-Sha256" => CHECKSUM })
+    stub_checksum_file(OTHER_CHECKSUM)
+
+    path, checksum = @backend.fetch_with_checksum(@cache_key)
+    assert_equal "gem-data", File.read(path)
+    assert_equal CHECKSUM, checksum
+    assert_not_requested :get, "https://prebake.internal/gems/#{@cache_key}.sha256"
+  ensure
+    File.delete(path) if path && File.exist?(path)
+  end
+
+  def test_fetch_with_checksum_falls_back_to_the_checksum_file_without_the_header
+    stub_gem
+    stub_checksum_file("#{CHECKSUM}\n")
+
+    path, checksum = @backend.fetch_with_checksum(@cache_key)
+    assert_equal CHECKSUM, checksum
+  ensure
+    File.delete(path) if path && File.exist?(path)
+  end
+
+  def test_fetch_with_checksum_ignores_a_malformed_header
+    stub_gem(headers: { "X-Prebake-Sha256" => "not-a-checksum" })
+    stub_checksum_file(CHECKSUM)
+
+    path, checksum = @backend.fetch_with_checksum(@cache_key)
+    assert_equal CHECKSUM, checksum
+  ensure
+    File.delete(path) if path && File.exist?(path)
+  end
+
+  def test_fetch_with_checksum_skips_the_checksum_on_404
+    stub_request(:get, "https://prebake.internal/gems/#{@cache_key}").to_return(status: 404)
+
+    assert_equal [nil, nil], @backend.fetch_with_checksum(@cache_key)
+    assert_not_requested :get, "https://prebake.internal/gems/#{@cache_key}.sha256"
+  end
+
   def test_push_sends_put_with_gem_body
     stub_request(:put, "https://prebake.internal/gems/#{@cache_key}")
       .with(headers: { "Authorization" => "Bearer bearer-secret" })
@@ -88,5 +130,17 @@ class HttpBackendTest < Minitest::Test
       f.flush
       refute @backend.push(f.path, @cache_key, "abc123")
     end
+  end
+
+  private
+
+  def stub_gem(headers: {})
+    stub_request(:get, "https://prebake.internal/gems/#{@cache_key}")
+      .to_return(status: 200, body: "gem-data", headers:)
+  end
+
+  def stub_checksum_file(body)
+    stub_request(:get, "https://prebake.internal/gems/#{@cache_key}.sha256")
+      .to_return(status: 200, body:)
   end
 end
