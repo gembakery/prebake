@@ -34,15 +34,8 @@ module Prebake
       platform = Platform.generalized
       cache_key = CacheKey.for(@spec.name, @spec.version.to_s, platform)
 
-      expected_checksum = Prebake.backend.fetch_checksum(cache_key)
-
-      if expected_checksum.nil? && Prebake.backend.checksums_supported?
-        trigger_rebuild(cache_key)
-        return super
-      end
-
       begin
-        cached_gem = Prebake.backend.fetch(cache_key)
+        cached_gem, expected_checksum = Prebake.backend.fetch_with_checksum(cache_key)
       rescue StandardError => e
         Logger.debug "Cache fetch error for #{@spec.name}: #{e.message}"
         return super
@@ -50,6 +43,11 @@ module Prebake
 
       unless cached_gem
         Logger.debug "Cache miss for #{cache_key}"
+        return super
+      end
+
+      if expected_checksum.nil? && Prebake.backend.checksums_supported?
+        trigger_rebuild(cache_key)
         return super
       end
 
@@ -83,7 +81,9 @@ module Prebake
 
     def trigger_rebuild(cache_key)
       Logger.warn "No checksum available for #{cache_key}, removing cached gem"
-      Prebake.backend.delete(cache_key)
+      # Without the delete the gem is still there, so the GET below would only download it again.
+      return unless Prebake.backend.delete(cache_key)
+
       # GET triggers the worker to dispatch a rebuild via GH Actions on cache miss
       leftover = Prebake.backend.fetch(cache_key)
       FileUtils.rm_f(leftover) if leftover

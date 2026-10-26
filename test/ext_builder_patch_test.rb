@@ -47,8 +47,7 @@ class ExtBuilderPatchTest < Minitest::Test
     gem_path = fake_gem_path
     checksum = Digest::SHA256.file(gem_path).hexdigest
     backend = mock("backend")
-    backend.expects(:fetch_checksum).with(cache_key).returns(checksum)
-    backend.expects(:fetch).with(cache_key).returns(gem_path)
+    backend.expects(:fetch_with_checksum).with(cache_key).returns([gem_path, checksum])
     Prebake.backend = backend
     [spec, backend, gem_path]
   end
@@ -60,13 +59,25 @@ class ExtBuilderPatchTest < Minitest::Test
     assert File.exist?(@build_complete), "gem_build_complete marker should be written"
   end
 
-  def test_deletes_and_triggers_rebuild_when_no_checksum_available
+  def test_deletes_and_triggers_rebuild_when_cached_gem_has_no_checksum
     spec = build_spec
     backend = mock("backend")
-    backend.expects(:fetch_checksum).with(cache_key).returns(nil)
+    backend.expects(:fetch_with_checksum).with(cache_key).returns([fake_gem_path, nil])
     backend.expects(:checksums_supported?).returns(true)
-    backend.expects(:delete).with(cache_key)
+    backend.expects(:delete).with(cache_key).returns(true)
     backend.expects(:fetch).with(cache_key).returns(nil)
+    Prebake.backend = backend
+    Prebake::Extractor.expects(:install).never
+    assert_raises(Gem::Ext::BuildError) { build(spec) }
+  end
+
+  def test_skips_rebuild_download_when_delete_of_unverified_gem_fails
+    spec = build_spec
+    backend = mock("backend")
+    backend.expects(:fetch_with_checksum).with(cache_key).returns([fake_gem_path, nil])
+    backend.expects(:checksums_supported?).returns(true)
+    backend.expects(:delete).with(cache_key).returns(false)
+    backend.expects(:fetch).never
     Prebake.backend = backend
     Prebake::Extractor.expects(:install).never
     assert_raises(Gem::Ext::BuildError) { build(spec) }
@@ -76,21 +87,20 @@ class ExtBuilderPatchTest < Minitest::Test
     spec = build_spec
     gem_path = fake_gem_path
     backend = mock("backend")
-    backend.expects(:fetch_checksum).with(cache_key).returns(nil)
+    backend.expects(:fetch_with_checksum).with(cache_key).returns([gem_path, nil])
     backend.expects(:checksums_supported?).returns(false)
     backend.expects(:delete).never
-    backend.expects(:fetch).with(cache_key).returns(gem_path)
     Prebake.backend = backend
     Prebake::Extractor.expects(:install).with(gem_path, spec).returns(1)
     build(spec)
     assert File.exist?(@build_complete), "gem_build_complete marker should be written"
   end
 
-  def test_falls_through_on_cache_miss
+  def test_falls_through_on_cache_miss_without_deleting
     spec = build_spec
     backend = mock("backend")
-    backend.stubs(:fetch_checksum).with(cache_key).returns("somechecksum")
-    backend.expects(:fetch).with(cache_key).returns(nil)
+    backend.expects(:fetch_with_checksum).with(cache_key).returns([nil, nil])
+    backend.expects(:delete).never
     Prebake.backend = backend
     assert_raises(Gem::Ext::BuildError) { build(spec) }
   end
@@ -98,7 +108,7 @@ class ExtBuilderPatchTest < Minitest::Test
   def test_skips_gems_without_extensions
     spec = build_spec(extensions: [])
     backend = mock("backend")
-    backend.expects(:fetch).never
+    backend.expects(:fetch_with_checksum).never
     Prebake.backend = backend
     build(spec)
   end
@@ -107,8 +117,8 @@ class ExtBuilderPatchTest < Minitest::Test
     spec = build_spec
     gem_path = fake_gem_path
     backend = mock("backend")
-    backend.stubs(:fetch_checksum).with(cache_key).returns(Digest::SHA256.file(gem_path).hexdigest)
-    backend.stubs(:fetch).with(cache_key).returns(gem_path)
+    backend.stubs(:fetch_with_checksum).with(cache_key)
+           .returns([gem_path, Digest::SHA256.file(gem_path).hexdigest])
     Prebake.backend = backend
     Prebake::Extractor.expects(:install).never
     builder = Gem::Ext::Builder.new(spec, ["--with-pg-config=/opt/pg/bin/pg_config"])
@@ -194,7 +204,7 @@ class ExtBuilderPatchTest < Minitest::Test
     Prebake.stubs(:optional_native_extension?).with("bootsnap").returns(true)
     Prebake.stubs(:libruby_available?).returns(false)
     Prebake.backend = mock("backend")
-    Prebake.backend.expects(:fetch).never
+    Prebake.backend.expects(:fetch_with_checksum).never
 
     build(spec)
     assert File.exist?(@build_complete), "gem_build_complete should be written without native extension"
@@ -217,7 +227,7 @@ class ExtBuilderPatchTest < Minitest::Test
     spec = build_spec(name: "myoptionalgem")
     Prebake.stubs(:libruby_available?).returns(false)
     Prebake.backend = mock("backend")
-    Prebake.backend.expects(:fetch).never
+    Prebake.backend.expects(:fetch_with_checksum).never
 
     build(spec)
     assert File.exist?(@build_complete)
@@ -233,9 +243,7 @@ class ExtBuilderPatchTest < Minitest::Test
     Prebake.stubs(:libruby_available?).returns(false)
     key = Prebake::CacheKey.for("bootsnap", "1.0.0", Prebake::Platform.generalized)
     backend = mock("backend")
-    backend.expects(:fetch_checksum).with(key).returns(nil)
-    backend.expects(:checksums_supported?).returns(false)
-    backend.expects(:fetch).with(key).returns(nil)
+    backend.expects(:fetch_with_checksum).with(key).returns([nil, nil])
     Prebake.backend = backend
 
     assert_raises(Gem::Ext::BuildError) { build(spec) }

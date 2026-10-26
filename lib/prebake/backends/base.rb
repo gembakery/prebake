@@ -13,6 +13,11 @@ module Prebake
         nil
       end
 
+      def fetch_with_checksum(cache_key)
+        path = fetch(cache_key)
+        [path, path && fetch_checksum(cache_key)]
+      end
+
       def push(gem_path, cache_key, checksum)
         raise NotImplementedError, "#{self.class}#push not implemented"
       end
