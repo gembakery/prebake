@@ -2,6 +2,7 @@ import { triggerBuild } from "./build-trigger.js";
 
 const MAX_UPLOAD_SIZE = 50 * 1024 * 1024; // 50MB
 const MAX_CHECKSUM_SIZE = 128; // generous upper bound; SHA-256 hex is 64 chars
+const SHA256_HEX = /^[0-9a-f]{64}$/;
 
 const encoder = new TextEncoder();
 
@@ -20,8 +21,25 @@ async function requireAuth(request, env) {
   return null;
 }
 
+// The checksum rides along with the gem so a cache hit costs one request. A
+// missing, malformed or unreadable checksum is left out; clients then fetch the
+// .sha256 file, as clients before 0.3.7 always do.
+async function readChecksum(cacheKey, env) {
+  try {
+    const object = await env.R2_BUCKET.get(`${cacheKey}.sha256`);
+    const checksum = object ? (await object.text()).trim() : "";
+    return SHA256_HEX.test(checksum) ? checksum : null;
+  } catch (err) {
+    console.error(`Failed to read checksum for ${cacheKey}:`, err);
+    return null;
+  }
+}
+
 export async function handleGet(cacheKey, env, ctx, clientIp) {
-  const object = await env.R2_BUCKET.get(cacheKey);
+  const [object, checksum] = await Promise.all([
+    env.R2_BUCKET.get(cacheKey),
+    readChecksum(cacheKey, env),
+  ]);
 
   if (!object) {
     ctx.waitUntil(
@@ -38,6 +56,7 @@ export async function handleGet(cacheKey, env, ctx, clientIp) {
   headers.set("Content-Length", object.size);
   headers.set("Cache-Control", "public, max-age=31536000, immutable");
   headers.set("ETag", object.httpEtag);
+  if (checksum) headers.set("X-Prebake-Sha256", checksum);
 
   return new Response(object.body, { headers });
 }
