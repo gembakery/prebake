@@ -11,6 +11,9 @@ module Prebake
     class Http < Base
       include HttpClient
 
+      CHECKSUM_HEADER = "X-Prebake-Sha256"
+      SHA256_HEX = /\A[0-9a-f]{64}\z/
+
       def initialize(url:, token: nil)
         @url = url.chomp("/")
         @token = token
@@ -19,15 +22,16 @@ module Prebake
       end
 
       def fetch(cache_key)
-        response = http_request(:get, gem_uri(cache_key))
-        return nil unless response.is_a?(Net::HTTPSuccess)
+        download(cache_key)&.first
+      end
 
-        path = File.join(Dir.tmpdir, "prebake-#{SecureRandom.hex(16)}.gem")
-        File.binwrite(path, response.body)
-        path
-      rescue StandardError => e
-        Logger.debug "Fetch failed for #{cache_key}: #{e.message}"
-        nil
+      # The hosted cache sends the checksum with the gem, so a hit costs one
+      # request. For servers that don't, the .sha256 file is fetched instead.
+      def fetch_with_checksum(cache_key)
+        path, checksum = download(cache_key)
+        return [nil, nil] unless path
+
+        [path, checksum || fetch_checksum(cache_key)]
       end
 
       def fetch_checksum(cache_key)
@@ -81,6 +85,19 @@ module Prebake
       end
 
       private
+
+      def download(cache_key)
+        response = http_request(:get, gem_uri(cache_key))
+        return unless response.is_a?(Net::HTTPSuccess)
+
+        path = File.join(Dir.tmpdir, "prebake-#{SecureRandom.hex(16)}.gem")
+        File.binwrite(path, response.body)
+        checksum = response[CHECKSUM_HEADER]
+        [path, (checksum if checksum&.match?(SHA256_HEX))]
+      rescue StandardError => e
+        Logger.debug "Fetch failed for #{cache_key}: #{e.message}"
+        nil
+      end
 
       def gem_uri(cache_key)
         URI("#{@url}/gems/#{cache_key}")

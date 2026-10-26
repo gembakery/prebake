@@ -119,7 +119,7 @@ Every other platform is supported through a self-hosted backend with `PREBAKE_PU
 
 ### HTTP (default)
 
-Works with the hosted prebake service at `gems.prebake.in` or any custom HTTP server implementing `GET/PUT/HEAD /gems/:key`. By default no environment variables are required. To point at another server:
+Works with the hosted prebake service at `gems.prebake.in` or any custom HTTP server implementing `GET/PUT/HEAD /gems/:key`. A server can also send the gem's SHA-256 (64 lowercase hex characters) in an `X-Prebake-Sha256` header on `GET /gems/:key`; prebake then skips the separate `GET /gems/:key.sha256` request. By default no environment variables are required. To point at another server:
 
 ```bash
 export PREBAKE_BACKEND=http
