@@ -1,6 +1,6 @@
 name = "prebake"
 main = "src/index.js"
-compatibility_date = "2026-03-22"
+compatibility_date = "2026-10-01"
 
 [[routes]]
 pattern = "gems.prebake.in/gems/*"
