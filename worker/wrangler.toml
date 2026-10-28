@@ -15,6 +15,10 @@ GITHUB_REPO = "gembakery/prebake"
 CACHE_KEY_PATTERN = "^[a-zA-Z0-9_.-]+-[0-9.]+-[a-z0-9_-]+-ruby[0-9.]+\\.gem$"
 MAX_MONTHLY_BUILDS = "400"
 
+# Per-request logs, kept 3 days on Workers Free, so a slow download can be traced to its client.
+[observability]
+enabled = true
+
 # Rate limit: 150 requests per 60 seconds per IP.
 # CDN absorbs most cached-gem traffic, so 150/min is plenty for CI/CD.
 [[ratelimits]]
