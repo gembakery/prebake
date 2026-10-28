@@ -16,6 +16,9 @@ module Prebake
       private
 
       def http_request(method, uri, body: nil)
+        # After one failed download the cache is likely struggling, so the rest of the install builds from source.
+        raise Error, "Skipped: an earlier request to the cache failed" if @unavailable && !body
+
         request = build_http_request(method, uri)
         if body
           request["Content-Type"] = "application/octet-stream"
@@ -31,6 +34,9 @@ module Prebake
             http.request(request)
           end
         end
+      rescue StandardError
+        @unavailable = true unless body
+        raise
       end
 
       def build_http_request(method, uri)
