@@ -31,6 +31,20 @@ class BaseBackendTest < Minitest::Test
     assert_equal [:fetch], backend.calls
   end
 
+  def test_fetch_with_checksum_removes_the_gem_when_the_checksum_lookup_fails
+    Dir.mktmpdir do |dir|
+      gem_path = File.join(dir, "prebake-a.gem")
+      File.write(gem_path, "gem-data")
+      backend = Class.new(Prebake::Backends::Base) do
+        define_method(:fetch) { |_key| gem_path }
+        define_method(:fetch_checksum) { |_key| raise Prebake::Error, "lookup failed" }
+      end.new
+
+      assert_raises(Prebake::Error) { backend.fetch_with_checksum("key") }
+      refute File.exist?(gem_path), "fetched gem should be removed"
+    end
+  end
+
   def test_fetch_raises_not_implemented
     error = assert_raises(NotImplementedError) { @base.fetch("any-cache-key") }
     assert_match(/fetch not implemented/, error.message)

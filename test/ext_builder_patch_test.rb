@@ -105,6 +105,15 @@ class ExtBuilderPatchTest < Minitest::Test
     assert_raises(Gem::Ext::BuildError) { build(spec) }
   end
 
+  def test_builds_from_source_without_deleting_when_the_checksum_lookup_fails
+    spec = build_spec
+    backend = mock("backend")
+    backend.expects(:fetch_with_checksum).with(cache_key).raises(Prebake::Error, "checksum lookup failed")
+    backend.expects(:delete).never
+    Prebake.backend = backend
+    assert_raises(Gem::Ext::BuildError) { build(spec) }
+  end
+
   def test_skips_gems_without_extensions
     spec = build_spec(extensions: [])
     backend = mock("backend")
