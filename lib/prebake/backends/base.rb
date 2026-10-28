@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "fileutils"
 require_relative "../logger"
 
 module Prebake
@@ -16,6 +17,9 @@ module Prebake
       def fetch_with_checksum(cache_key)
         path = fetch(cache_key)
         [path, path && fetch_checksum(cache_key)]
+      rescue StandardError
+        FileUtils.rm_f(path) if path
+        raise
       end
 
       def push(gem_path, cache_key, checksum)

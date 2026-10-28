@@ -31,8 +31,7 @@ module Prebake
       def fetch_checksum(cache_key)
         response = client.get_object(bucket: @bucket, key: checksum_key(cache_key))
         response.body.read.strip
-      rescue StandardError => e
-        Logger.debug "S3 checksum fetch failed for #{cache_key}: #{e.message}"
+      rescue Aws::S3::Errors::NoSuchKey
         nil
       end
 

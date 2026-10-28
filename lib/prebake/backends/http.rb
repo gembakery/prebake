@@ -2,6 +2,7 @@
 
 require "uri"
 require "securerandom"
+require "fileutils"
 require_relative "base"
 require_relative "http_client"
 require_relative "../logger"
@@ -32,16 +33,19 @@ module Prebake
         return [nil, nil] unless path
 
         [path, checksum || fetch_checksum(cache_key)]
+      rescue StandardError
+        FileUtils.rm_f(path) if path
+        raise
       end
 
+      # nil means the server has no checksum file. Anything else that goes wrong
+      # raises, so a lookup that merely failed never gets a good cached gem deleted.
       def fetch_checksum(cache_key)
         response = http_request(:get, checksum_uri(cache_key))
-        return nil unless response.is_a?(Net::HTTPSuccess)
+        return response.body.strip if response.is_a?(Net::HTTPSuccess)
+        return nil if response.is_a?(Net::HTTPNotFound)
 
-        response.body.strip
-      rescue StandardError => e
-        Logger.debug "Checksum fetch failed for #{cache_key}: #{e.message}"
-        nil
+        raise Error, "Checksum fetch for #{cache_key} returned #{response.code}"
       end
 
       def push(gem_path, cache_key, checksum)

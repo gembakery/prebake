@@ -21,6 +21,16 @@ class S3BackendTest < Minitest::Test
                  @backend.send(:object_key, @cache_key)
   end
 
+  def test_fetch_checksum_returns_nil_when_the_checksum_object_is_missing
+    @backend.stubs(:client).returns(stub_everything.tap { |c| c.stubs(:get_object).raises(Aws::S3::Errors::NoSuchKey) })
+    assert_nil @backend.fetch_checksum(@cache_key)
+  end
+
+  def test_fetch_checksum_raises_when_the_lookup_fails
+    @backend.stubs(:client).returns(stub_everything.tap { |c| c.stubs(:get_object).raises(Timeout::Error) })
+    assert_raises(Timeout::Error) { @backend.fetch_checksum(@cache_key) }
+  end
+
   def test_initialize_raises_without_aws_sdk
     $LOAD_PATH.delete(STUBS_DIR)
     $LOADED_FEATURES.reject! { |f| f.include?("aws-sdk-s3") }

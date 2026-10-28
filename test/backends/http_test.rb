@@ -72,6 +72,33 @@ class HttpBackendTest < Minitest::Test
     assert_not_requested :get, "https://prebake.internal/gems/#{@cache_key}.sha256"
   end
 
+  def test_fetch_with_checksum_raises_when_the_checksum_lookup_fails
+    SecureRandom.stubs(:hex).returns("checksum-lookup-fails")
+    stub_gem
+    stub_request(:get, "https://prebake.internal/gems/#{@cache_key}.sha256").to_return(status: 503)
+
+    assert_raises(Prebake::Error) { @backend.fetch_with_checksum(@cache_key) }
+    refute File.exist?(File.join(Dir.tmpdir, "prebake-checksum-lookup-fails.gem")), "downloaded gem should be removed"
+  end
+
+  def test_fetch_with_checksum_raises_when_the_checksum_lookup_times_out
+    stub_gem
+    stub_request(:get, "https://prebake.internal/gems/#{@cache_key}.sha256").to_timeout
+
+    assert_raises(Net::OpenTimeout) { @backend.fetch_with_checksum(@cache_key) }
+  end
+
+  def test_fetch_with_checksum_reports_a_missing_checksum_file
+    stub_gem
+    stub_request(:get, "https://prebake.internal/gems/#{@cache_key}.sha256").to_return(status: 404)
+
+    path, checksum = @backend.fetch_with_checksum(@cache_key)
+    assert_equal "gem-data", File.read(path)
+    assert_nil checksum
+  ensure
+    File.delete(path) if path && File.exist?(path)
+  end
+
   def test_push_sends_put_with_gem_body
     stub_request(:put, "https://prebake.internal/gems/#{@cache_key}")
       .with(headers: { "Authorization" => "Bearer bearer-secret" })
