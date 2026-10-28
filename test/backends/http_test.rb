@@ -132,11 +132,54 @@ class HttpBackendTest < Minitest::Test
     end
   end
 
+  def test_fetch_gives_up_when_the_download_outlasts_the_deadline
+    slow_body = lambda do |_request|
+      sleep 2
+      "gem-data"
+    end
+    stub_request(:get, "https://prebake.internal/gems/#{@cache_key}")
+      .to_return(status: 200, body: slow_body)
+
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    result = with_deadline(0.2) { @backend.fetch(@cache_key) }
+
+    assert_nil result
+    assert_operator Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, :<, 1
+  end
+
+  def test_push_is_exempt_from_the_deadline
+    slow_ack = lambda do |_request|
+      sleep 0.5
+      ""
+    end
+    stub_request(:put, "https://prebake.internal/gems/#{@cache_key}")
+      .to_return(status: 201, body: slow_ack)
+    stub_request(:put, "https://prebake.internal/gems/#{@cache_key}.sha256")
+      .to_return(status: 201)
+
+    Tempfile.create(["test", ".gem"]) do |f|
+      f.write("gem-content")
+      f.flush
+      assert(with_deadline(0.1) { @backend.push(f.path, @cache_key, "abc123") })
+    end
+  end
+
   private
 
   def stub_gem(headers: {})
     stub_request(:get, "https://prebake.internal/gems/#{@cache_key}")
       .to_return(status: 200, body: "gem-data", headers:)
+  end
+
+  def with_deadline(seconds)
+    client = Prebake::Backends::HttpClient
+    original = client::DEADLINE
+    client.send(:remove_const, :DEADLINE)
+    client.const_set(:DEADLINE, seconds)
+    yield
+  ensure
+    client.send(:remove_const, :DEADLINE)
+    client.const_set(:DEADLINE, original)
   end
 
   def stub_checksum_file(body)
