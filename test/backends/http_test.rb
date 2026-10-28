@@ -164,6 +164,56 @@ class HttpBackendTest < Minitest::Test
     end
   end
 
+  OTHER_KEY = "nio4r-2.7.5-arm64-darwin-ruby4.0.gem"
+
+  def test_a_failed_download_skips_the_cache_for_later_downloads
+    stub_request(:get, "https://prebake.internal/gems/#{@cache_key}").to_timeout
+    stub_request(:get, "https://prebake.internal/gems/#{OTHER_KEY}").to_return(status: 200, body: "gem-data")
+
+    assert_nil @backend.fetch(@cache_key)
+    assert_nil @backend.fetch(OTHER_KEY)
+    assert_not_requested :get, "https://prebake.internal/gems/#{OTHER_KEY}"
+  end
+
+  def test_a_cache_miss_keeps_using_the_cache
+    stub_request(:get, "https://prebake.internal/gems/#{@cache_key}").to_return(status: 404)
+    stub_request(:get, "https://prebake.internal/gems/#{OTHER_KEY}").to_return(status: 200, body: "gem-data")
+
+    assert_nil @backend.fetch(@cache_key)
+    path = @backend.fetch(OTHER_KEY)
+    assert_equal "gem-data", File.read(path)
+  ensure
+    File.delete(path) if path && File.exist?(path)
+  end
+
+  def test_a_failed_upload_keeps_using_the_cache_for_downloads
+    stub_request(:put, "https://prebake.internal/gems/#{@cache_key}").to_timeout
+    stub_gem
+
+    Tempfile.create(["test", ".gem"]) do |f|
+      f.write("gem-content")
+      f.flush
+      refute @backend.push(f.path, @cache_key, "abc123")
+    end
+    path = @backend.fetch(@cache_key)
+    assert_equal "gem-data", File.read(path)
+  ensure
+    File.delete(path) if path && File.exist?(path)
+  end
+
+  def test_uploads_still_run_after_a_failed_download
+    stub_request(:get, "https://prebake.internal/gems/#{OTHER_KEY}").to_timeout
+    stub_request(:put, "https://prebake.internal/gems/#{@cache_key}").to_return(status: 201)
+    stub_request(:put, "https://prebake.internal/gems/#{@cache_key}.sha256").to_return(status: 201)
+
+    assert_nil @backend.fetch(OTHER_KEY)
+    Tempfile.create(["test", ".gem"]) do |f|
+      f.write("gem-content")
+      f.flush
+      assert @backend.push(f.path, @cache_key, "abc123")
+    end
+  end
+
   private
 
   def stub_gem(headers: {})

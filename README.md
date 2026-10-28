@@ -91,7 +91,7 @@ All configuration is done through environment variables. No code changes require
 5. **Cache hit**: the prebuilt `.so`/`.bundle` files are extracted to the same places a source build puts them, with no compiler needed.
 6. **Cache miss**: Bundler compiles from source as usual (no impact, same as without the plugin).
 
-Downloads from the cache give up after 10 seconds in total. The gem then compiles from source, as on a cache miss, so a slow or stalled cache can't hold up `bundle install`.
+Downloads from the cache give up after 10 seconds in total. The gem then compiles from source, as on a cache miss, so a slow or stalled cache can't hold up `bundle install`. After one failed download, prebake stops asking the cache for the rest of that install.
 
 A gem with build options, set through `bundle config set build.<gem>` or `gem install <gem> -- <options>`, is always compiled from source. Cached binaries are built with default options, so prebake skips the cache for that gem.
 
