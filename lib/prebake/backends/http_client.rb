@@ -1,11 +1,14 @@
 # frozen_string_literal: true
 
 require "net/http"
+require "timeout"
 
 module Prebake
   module Backends
     module HttpClient
       TIMEOUT = 30
+      # Net::HTTP's timeouts restart on every read, so a trickling response needs a total cap.
+      DEADLINE = 10
       HTTP_METHODS = { get: Net::HTTP::Get, head: Net::HTTP::Head,
                        post: Net::HTTP::Post, put: Net::HTTP::Put,
                        delete: Net::HTTP::Delete }.freeze
@@ -19,11 +22,14 @@ module Prebake
           request.body = body
         end
 
-        Net::HTTP.start(uri.host, uri.port,
-                        use_ssl: uri.scheme == "https",
-                        open_timeout: TIMEOUT,
-                        read_timeout: TIMEOUT) do |http|
-          http.request(request)
+        # Uploads carry whole gems, so they keep only the per-phase timeouts.
+        Timeout.timeout(body ? nil : DEADLINE) do
+          Net::HTTP.start(uri.host, uri.port,
+                          use_ssl: uri.scheme == "https",
+                          open_timeout: TIMEOUT,
+                          read_timeout: TIMEOUT) do |http|
+            http.request(request)
+          end
         end
       end
 
