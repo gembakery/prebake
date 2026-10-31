@@ -113,7 +113,18 @@ jobs:
           GEM_NAME: ${{ inputs.gem_name }}
           GEM_VERSION: ${{ inputs.gem_version }}
         run: |
-          gem build_binary "${GEM_NAME}-${GEM_VERSION}.gem"
+          # build_binary installs the dependencies with RubyGems' default ri
+          # docs, and the rdoc hook then fails on Ruby 3.3 and 3.4 (#56).
+          # shortcut: the command has no --no-document, so set the option from
+          # Ruby, and use the flag if the command gains one.
+          ruby - "${GEM_NAME}-${GEM_VERSION}.gem" <<'RUBY'
+          require "rubygems/command_manager"
+          require "rubygems/commands/build_binary_command"
+
+          command = Gem::Commands::BuildBinaryCommand.new
+          command.defaults = command.defaults.merge(document: [])
+          command.invoke(*ARGV)
+          RUBY
           ls -la *.gem
 
       - name: Drop the libruby link
