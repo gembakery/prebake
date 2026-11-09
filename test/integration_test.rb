@@ -72,6 +72,47 @@ class IntegrationTest < Minitest::Test
     FileUtils.rm_f(platform_gem_path) if platform_gem_path
   end
 
+  # sass-embedded's build produces an executable and no compiled library.
+  def test_round_trip_restores_generated_files_of_a_gem_without_libraries
+    gem_dir = File.join(@tmpdir, "fakegem-1.0.0")
+    builder_extension_dir = File.join(@tmpdir, "builder_extensions")
+    FileUtils.mkdir_p(File.join(gem_dir, "lib"))
+    FileUtils.mkdir_p(File.join(builder_extension_dir, "fake/dart-sass"))
+    File.write(File.join(gem_dir, "lib/fakegem.rb"), "require 'fake/cli'")
+    File.write(File.join(builder_extension_dir, "fake/cli.rb"), "COMMAND")
+    exe = File.join(builder_extension_dir, "fake/dart-sass/sass")
+    File.write(exe, "#!/bin/sh")
+    File.chmod(0o755, exe)
+
+    spec = Gem::Specification.new do |s|
+      s.name = "fakegem"
+      s.version = "1.0.0"
+      s.platform = "ruby"
+      s.authors = ["Test"]
+      s.summary = "Test"
+      s.homepage = "https://example.com"
+      s.license = "MIT"
+      s.extensions = ["ext/fake/Rakefile"]
+      s.files = ["lib/fakegem.rb"]
+    end
+    spec.define_singleton_method(:gem_dir) { gem_dir }
+    spec.define_singleton_method(:full_gem_path) { gem_dir }
+    spec.define_singleton_method(:extension_dir) { builder_extension_dir }
+    platform_gem_path = Prebake::PlatformGemBuilder.new(spec).build
+
+    consumer_extension_dir = File.join(@tmpdir, "consumer_extensions")
+    FileUtils.mkdir_p(consumer_extension_dir)
+    consumer_spec = mock("spec")
+    consumer_spec.stubs(:extension_dir).returns(consumer_extension_dir)
+
+    assert_equal 2, Prebake::Extractor.install(platform_gem_path, consumer_spec)
+
+    assert_equal "COMMAND", File.read(File.join(consumer_extension_dir, "fake/cli.rb"))
+    assert File.executable?(File.join(consumer_extension_dir, "fake/dart-sass/sass"))
+  ensure
+    FileUtils.rm_f(platform_gem_path) if platform_gem_path
+  end
+
   def test_cache_key_consistency
     key1 = Prebake::CacheKey.for("puma", "6.4.3",
                                  Prebake::Platform.generalized)
