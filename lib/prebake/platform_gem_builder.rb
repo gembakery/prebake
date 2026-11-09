@@ -6,6 +6,7 @@ require "digest"
 require "tempfile"
 require "securerandom"
 require_relative "platform"
+require_relative "extension_layout"
 require_relative "logger"
 
 module Prebake
@@ -54,12 +55,14 @@ module Prebake
       Dir.glob(File.join(build_dir, "**/*.{so,bundle,dll}")).each { |f| File.delete(f) }
 
       ext_dir = @spec.extension_dir
-      copy_installed_binaries(ext_dir, build_dir) if ext_dir && File.directory?(ext_dir)
+      installed = ext_dir && File.directory?(ext_dir)
+      copy_installed_binaries(ext_dir, build_dir) if installed
+      generated = installed ? copy_generated_files(ext_dir, build_dir) : []
 
       prefix = "#{build_dir}/"
       compiled = Dir.glob(File.join(build_dir, "**/*.{so,bundle,dll}"))
                     .map { |f| f.delete_prefix(prefix) }
-      platform_spec.files = platform_spec.files | compiled
+      platform_spec.files = platform_spec.files | compiled | generated
 
       platform_spec
     end
@@ -79,6 +82,29 @@ module Prebake
         FileUtils.mkdir_p(File.dirname(dest))
         FileUtils.cp(binary, dest)
       end
+    end
+
+    # Files the build wrote besides compiled libraries (generated Ruby files,
+    # executables, data). They go under GENERATED_DIR so the extractor can tell
+    # them from the gem's own files. Returns the packaged paths.
+    def copy_generated_files(ext_dir, build_dir)
+      Dir.glob("**/*", File::FNM_DOTMATCH, base: ext_dir).filter_map do |relative|
+        source = File.join(ext_dir, relative)
+        next if generated_skipped?(relative) || File.symlink?(source) || !File.file?(source)
+
+        packaged = File.join(ExtensionLayout::GENERATED_DIR, relative)
+        dest = File.join(build_dir, packaged)
+        FileUtils.mkdir_p(File.dirname(dest))
+        FileUtils.cp(source, dest)
+        packaged
+      end
+    end
+
+    # extension/ is a dirty-layout copy of the extension dir; binaries have their own path.
+    def generated_skipped?(relative)
+      relative.start_with?("extension/", "extensions/") ||
+        ExtensionLayout::BUILD_RECORDS.include?(relative) ||
+        File.fnmatch?(ExtensionLayout::BINARY_GLOB, File.basename(relative), File::FNM_EXTGLOB)
     end
 
     # Binaries at root and one level deep (e.g., nokogiri/nokogiri.so), plus the
