@@ -105,7 +105,7 @@ module Prebake
       count = Extractor.install(gem_path, @spec)
 
       if count.zero?
-        Logger.warn "No binaries found in cached gem for #{@spec.name}, falling back to source build"
+        Logger.warn "No files to install in cached gem for #{@spec.name}, falling back to source build"
         return false
       end
 

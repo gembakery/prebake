@@ -2,6 +2,7 @@
 
 require "rubygems/package"
 require "fileutils"
+require_relative "extension_layout"
 require_relative "logger"
 
 module Prebake
@@ -25,18 +26,35 @@ module Prebake
           restore_in_gem_dir(binary, tmpdir, spec)
           extracted_count += 1
         end
+
+        extracted_count += restore_generated_files(tmpdir, spec)
       end
 
       # Mark this extension_dir as prebake-managed for post-install layout repair
       FileUtils.touch(File.join(spec.extension_dir, ".prebake")) if extracted_count.positive?
 
       Logger.info "Installed precompiled #{File.basename(gem_path)} " \
-                  "(#{extracted_count} binary files)"
+                  "(#{extracted_count} files)"
 
       extracted_count
     rescue StandardError => e
       Logger.warn "Extraction failed for #{File.basename(gem_path)}: #{e.message}"
       raise
+    end
+
+    # Files the publisher's build wrote besides compiled libraries come back to
+    # the extension dir at the paths the build left them. Returns how many.
+    def self.restore_generated_files(tmpdir, spec)
+      root = File.join(tmpdir, ExtensionLayout::GENERATED_DIR)
+      Dir.glob("**/*", File::FNM_DOTMATCH, base: root).count do |relative|
+        source = File.join(root, relative)
+        next false unless File.file?(source)
+
+        dest = File.join(spec.extension_dir, relative)
+        FileUtils.mkdir_p(File.dirname(dest))
+        FileUtils.cp(source, dest)
+        true
+      end
     end
 
     # Reject symlinks, empty files, and anything resolving outside tmpdir

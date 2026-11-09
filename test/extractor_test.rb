@@ -194,6 +194,51 @@ class ExtractorTest < Minitest::Test
     assert_empty Dir.children(@gem_dir)
   end
 
+  def test_restores_generated_files_into_extension_dir
+    gem_path = build_fake_platform_gem(
+      "testgem", "1.0.0",
+      files: {
+        "testgem.so" => "binary",
+        "prebake-generated/sass/cli.rb" => "COMMAND",
+        "prebake-generated/sass/dart-sass/sass" => "#!/bin/sh"
+      }
+    )
+    spec = mock("spec")
+    spec.stubs(:extension_dir).returns(@extension_dir)
+
+    Prebake::Extractor.install(gem_path, spec)
+
+    assert_equal "COMMAND", File.read(File.join(@extension_dir, "sass/cli.rb"))
+    assert_equal "#!/bin/sh", File.read(File.join(@extension_dir, "sass/dart-sass/sass"))
+    refute File.exist?(File.join(@extension_dir, "prebake-generated"))
+  end
+
+  def test_keeps_the_executable_bit_of_generated_files
+    gem_path = build_fake_platform_gem(
+      "testgem", "1.0.0",
+      files: { "prebake-generated/sass/dart-sass/sass" => "#!/bin/sh" },
+      modes: { "prebake-generated/sass/dart-sass/sass" => 0o755 }
+    )
+    spec = mock("spec")
+    spec.stubs(:extension_dir).returns(@extension_dir)
+
+    Prebake::Extractor.install(gem_path, spec)
+
+    assert File.executable?(File.join(@extension_dir, "sass/dart-sass/sass"))
+  end
+
+  def test_counts_a_gem_with_only_generated_files_as_installed
+    gem_path = build_fake_platform_gem(
+      "sass-embedded", "1.0.0",
+      files: { "prebake-generated/sass/cli.rb" => "COMMAND" }
+    )
+    spec = mock("spec")
+    spec.stubs(:extension_dir).returns(@extension_dir)
+
+    assert_equal 1, Prebake::Extractor.install(gem_path, spec)
+    assert File.exist?(File.join(@extension_dir, ".prebake"))
+  end
+
   def test_writes_prebake_marker_on_successful_extraction
     gem_path = build_fake_platform_gem(
       "testgem", "1.0.0",
@@ -225,7 +270,7 @@ class ExtractorTest < Minitest::Test
 
   private
 
-  def build_fake_platform_gem(name, version, files:)
-    build_test_gem(name: name, version: version, files: files)
+  def build_fake_platform_gem(name, version, files:, modes: {})
+    build_test_gem(name: name, version: version, files: files, modes: modes)
   end
 end
