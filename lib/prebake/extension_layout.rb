@@ -7,6 +7,13 @@ module Prebake
   module ExtensionLayout
     BINARY_GLOB = "*.{so,bundle,dll}"
 
+    # Where a cached gem carries the non-binary files its build wrote into the
+    # extension dir, so they are not mistaken for the gem's own files.
+    GENERATED_DIR = "prebake-generated"
+
+    # RubyGems and prebake write these into the extension dir; they are not build output.
+    BUILD_RECORDS = %w[gem.build_complete gem_make.out mkmf.log .prebake].freeze
+
     def self.repair_all
       Bundler.definition.specs.each { |spec| repair(spec) }
     end

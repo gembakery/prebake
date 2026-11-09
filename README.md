@@ -88,7 +88,7 @@ All configuration is done through environment variables. No code changes require
 2. Prebake intercepts `Gem::Ext::Builder#build_extensions` before compilation starts.
 3. A cache key is generated from the gem name, version, platform (for example `aarch64-linux`), and Ruby ABI version (e.g., `4.0`).
 4. The plugin checks the configured backend for a precompiled binary matching that key.
-5. **Cache hit**: the prebuilt `.so`/`.bundle` files are extracted to the same places a source build puts them, with no compiler needed.
+5. **Cache hit**: the prebuilt `.so`/`.bundle` files, and any other files the build generated (Ruby files, executables, data), are extracted to the same places a source build puts them, with no compiler needed.
 6. **Cache miss**: Bundler compiles from source as usual (no impact, same as without the plugin).
 
 Downloads from the cache give up after 10 seconds in total. The gem then compiles from source, as on a cache miss, so a slow or stalled cache can't hold up `bundle install`. After one failed download, prebake stops asking the cache for the rest of that install.

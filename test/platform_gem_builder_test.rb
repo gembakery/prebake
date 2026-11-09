@@ -115,6 +115,40 @@ class PlatformGemBuilderTest < Minitest::Test
     FileUtils.rm_f(gem_path) if gem_path
   end
 
+  # sass-embedded's build writes cli.rb and a dart-sass executable next to
+  # (or instead of) a compiled library. They are not in the gem's own files.
+  def test_includes_generated_files_from_extension_dir
+    spec = build_installed_gem
+    write_in_extension_dir(spec, "sass/cli.rb" => "COMMAND", "sass/dart-sass/sass" => "#!/bin/sh")
+    File.chmod(0o755, File.join(spec.extension_dir, "sass/dart-sass/sass"))
+
+    gem_path = Prebake::PlatformGemBuilder.new(spec).build
+
+    package = Gem::Package.new(gem_path)
+    assert_includes package.spec.files, "prebake-generated/sass/cli.rb"
+    assert_includes package.spec.files, "prebake-generated/sass/dart-sass/sass"
+    Dir.mktmpdir do |dir|
+      package.extract_files(dir)
+      assert File.executable?(File.join(dir, "prebake-generated/sass/dart-sass/sass"))
+    end
+  ensure
+    FileUtils.rm_f(gem_path) if gem_path
+  end
+
+  def test_leaves_build_logs_and_markers_out_of_generated_files
+    spec = build_installed_gem
+    write_in_extension_dir(spec, "gem_make.out" => "log", "mkmf.log" => "log",
+                                 "gem.build_complete" => "", ".prebake" => "",
+                                 "extension/x86_64-linux/4.0.0/stale.rb" => "stale")
+
+    gem_path = Prebake::PlatformGemBuilder.new(spec).build
+
+    generated = Gem::Package.new(gem_path).spec.files.grep(%r{\Aprebake-generated/})
+    assert_empty generated
+  ensure
+    FileUtils.rm_f(gem_path) if gem_path
+  end
+
   def test_builds_gem_resolved_through_compact_index
     spec = build_compact_index_spec
 
@@ -128,6 +162,14 @@ class PlatformGemBuilderTest < Minitest::Test
   end
 
   private
+
+  def write_in_extension_dir(spec, files)
+    files.each do |path, content|
+      full = File.join(spec.extension_dir, path)
+      FileUtils.mkdir_p(File.dirname(full))
+      File.write(full, content)
+    end
+  end
 
   def build_installed_gem
     gem_dir = File.join(@tmpdir, "testgem-1.0.0")

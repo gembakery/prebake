@@ -21,7 +21,7 @@ module TestGemBuilder
     attr_reader :tmpdirs
   end
 
-  def build_test_gem(name: "testgem", version: "1.0.0", files: {})
+  def build_test_gem(name: "testgem", version: "1.0.0", files: {}, modes: {})
     build_dir = Dir.mktmpdir("prebake-test-gem")
     TestGemBuilder.tmpdirs << build_dir
 
@@ -40,6 +40,7 @@ module TestGemBuilder
       full = File.join(build_dir, path)
       FileUtils.mkdir_p(File.dirname(full))
       File.write(full, content)
+      File.chmod(modes[path], full) if modes[path]
     end
 
     gem_file = nil
